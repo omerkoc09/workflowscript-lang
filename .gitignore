@@ -1,0 +1,7 @@
+# compiled binaries
+/wsc
+
+# Go test and build artifacts
+*.test
+*.out
+/vendor/
