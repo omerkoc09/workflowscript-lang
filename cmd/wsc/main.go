@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"workflowscript/internal/checker"
+	"workflowscript/internal/eval"
 	"workflowscript/internal/lexer"
 	"workflowscript/internal/parser"
 )
@@ -43,5 +45,15 @@ func main() {
 		return
 	}
 
-	fmt.Println("Parse OK —", len(prog.Decls), "top-level declarations")
+	c := checker.New()
+	if err := c.Check(prog); err != nil {
+		fmt.Fprintf(os.Stderr, "type error: %v\n", err)
+		os.Exit(1)
+	}
+
+	interp := eval.New()
+	if err := interp.Run(prog); err != nil {
+		fmt.Fprintf(os.Stderr, "runtime error: %v\n", err)
+		os.Exit(1)
+	}
 }
