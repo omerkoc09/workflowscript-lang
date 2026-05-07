@@ -1,6 +1,6 @@
 # WorkflowScript
 
-A typed task/workflow orchestration DSL. CSE341 Project.
+A typed task/workflow orchestration DSL. 
 
 ## Build
 
