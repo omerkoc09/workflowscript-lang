@@ -489,10 +489,12 @@ func (p *Parser) parsePrimary() (ast.Expr, error) {
 		if p.pos+1 < len(p.tokens) && p.tokens[p.pos+1].Type == token.DOT {
 			obj := p.advance()
 			p.advance() // consume "."
-			field, err := p.expect(token.IDENT)
-			if err != nil {
-				return nil, err
+			field := p.peek()
+			// Allow keywords as field names (e.g., obj.timeout)
+			if field.Type != token.IDENT && field.Type != token.KW_TIMEOUT && field.Type != token.KW_RETRIES && field.Type != token.KW_PARALLEL {
+				return nil, fmt.Errorf("line %d: expected field name, got %q", field.Line, field.Lexeme)
 			}
+			p.advance()
 			return &ast.FieldExpr{Object: obj, Field: field}, nil
 		}
 		return &ast.Ident{Token: p.advance()}, nil
