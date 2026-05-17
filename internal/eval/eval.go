@@ -15,16 +15,19 @@ type TaskValue struct {
 }
 
 type Interpreter struct {
-	env   *Env
-	funs  map[string]*ast.FunDecl
-	tasks map[string]*TaskValue
+	env       *Env
+	funs      map[string]*ast.FunDecl
+	tasks     map[string]*TaskValue
+	pipelines map[string]*ast.PipelineDecl
+	runLog    []string // tracks executed task/stage names (for testing)
 }
 
 func New() *Interpreter {
 	return &Interpreter{
-		env:   NewEnv(nil),
-		funs:  map[string]*ast.FunDecl{},
-		tasks: map[string]*TaskValue{},
+		env:       NewEnv(nil),
+		funs:      map[string]*ast.FunDecl{},
+		tasks:     map[string]*TaskValue{},
+		pipelines: map[string]*ast.PipelineDecl{},
 	}
 }
 
@@ -43,6 +46,8 @@ func (interp *Interpreter) Run(prog *ast.Program) error {
 			}
 			interp.tasks[n.Name.Lexeme] = tv
 			interp.env.Set(n.Name.Lexeme, tv)
+		case *ast.PipelineDecl:
+			interp.pipelines[n.Name.Lexeme] = n
 		case *ast.FunDecl:
 			interp.funs[n.Name.Lexeme] = n
 		}
@@ -108,8 +113,20 @@ func (interp *Interpreter) evalStmt(s ast.Stmt, env *Env) (interface{}, error) {
 		}
 		return nil, nil
 	case *ast.RunStmt:
-		fmt.Printf("[run] %s\n", n.Target.Lexeme)
-		return nil, nil
+		name := n.Target.Lexeme
+		if _, ok := interp.tasks[name]; ok {
+			fmt.Printf("[run] %s\n", name)
+			interp.runLog = append(interp.runLog, name)
+			return nil, nil
+		}
+		if pipeline, ok := interp.pipelines[name]; ok {
+			for _, stage := range pipeline.Stages {
+				fmt.Printf("[run] %s\n", stage.Lexeme)
+				interp.runLog = append(interp.runLog, stage.Lexeme)
+			}
+			return nil, nil
+		}
+		return nil, fmt.Errorf("line %d: undefined task or pipeline %q", n.Target.Line, name)
 	case *ast.ReturnStmt:
 		val, err := interp.evalExpr(n.Value, env)
 		if err != nil {
@@ -173,6 +190,9 @@ func (interp *Interpreter) evalExpr(e ast.Expr, env *Env) (interface{}, error) {
 	case *ast.CallExpr:
 		return interp.evalCall(n, env)
 	case *ast.BinaryExpr:
+		if n.Op.Type == token.AND || n.Op.Type == token.OR {
+			return interp.evalLogical(n, env)
+		}
 		return interp.evalBinary(n, env)
 	case *ast.UnaryExpr:
 		return interp.evalUnary(n, env)
@@ -180,7 +200,33 @@ func (interp *Interpreter) evalExpr(e ast.Expr, env *Env) (interface{}, error) {
 	return nil, fmt.Errorf("unknown expression %T", e)
 }
 
+func (interp *Interpreter) evalLogical(n *ast.BinaryExpr, env *Env) (interface{}, error) {
+	left, err := interp.evalExpr(n.Left, env)
+	if err != nil {
+		return nil, err
+	}
+	if n.Op.Type == token.AND && !left.(bool) {
+		return false, nil
+	}
+	if n.Op.Type == token.OR && left.(bool) {
+		return true, nil
+	}
+	right, err := interp.evalExpr(n.Right, env)
+	if err != nil {
+		return nil, err
+	}
+	return right.(bool), nil
+}
+
 func (interp *Interpreter) evalCall(n *ast.CallExpr, env *Env) (interface{}, error) {
+	if n.Name.Lexeme == "print" {
+		val, err := interp.evalExpr(n.Args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println(val)
+		return nil, nil
+	}
 	fn, ok := interp.funs[n.Name.Lexeme]
 	if !ok {
 		return nil, fmt.Errorf("line %d: undeclared function %q", n.Name.Line, n.Name.Lexeme)
@@ -271,10 +317,6 @@ func (interp *Interpreter) evalBinary(n *ast.BinaryExpr, env *Env) (interface{},
 		return left == right, nil
 	case token.NEQ:
 		return left != right, nil
-	case token.AND:
-		return left.(bool) && right.(bool), nil
-	case token.OR:
-		return left.(bool) || right.(bool), nil
 	}
 	return nil, fmt.Errorf("unknown operator %q", n.Op.Lexeme)
 }

@@ -7,16 +7,19 @@ import (
 )
 
 type Checker struct {
-	scopes []map[string]Type
-	funs   map[string]*ast.FunDecl
-	tasks  map[string]*ast.TaskDecl
+	scopes     []map[string]Type
+	funs       map[string]*ast.FunDecl
+	tasks      map[string]*ast.TaskDecl
+	pipelines  map[string]*ast.PipelineDecl
+	returnType Type // expected return type of current function
 }
 
 func New() *Checker {
 	return &Checker{
-		scopes: []map[string]Type{{}},
-		funs:   map[string]*ast.FunDecl{},
-		tasks:  map[string]*ast.TaskDecl{},
+		scopes:    []map[string]Type{{}},
+		funs:      map[string]*ast.FunDecl{},
+		tasks:     map[string]*ast.TaskDecl{},
+		pipelines: map[string]*ast.PipelineDecl{},
 	}
 }
 
@@ -37,12 +40,14 @@ func (c *Checker) push() { c.scopes = append(c.scopes, map[string]Type{}) }
 func (c *Checker) pop()  { c.scopes = c.scopes[:len(c.scopes)-1] }
 
 func (c *Checker) Check(prog *ast.Program) error {
-	// First pass: register tasks and functions for forward references
+	// First pass: register tasks, pipelines, and functions for forward references
 	for _, d := range prog.Decls {
 		switch n := d.(type) {
 		case *ast.TaskDecl:
 			c.tasks[n.Name.Lexeme] = n
 			c.define(n.Name.Lexeme, TTask)
+		case *ast.PipelineDecl:
+			c.pipelines[n.Name.Lexeme] = n
 		case *ast.FunDecl:
 			c.funs[n.Name.Lexeme] = n
 		}
@@ -80,16 +85,33 @@ func (c *Checker) checkStmt(s ast.Stmt) error {
 			}
 			c.define(p.Name.Lexeme, t)
 		}
+		retType, err := typeFromLexeme(n.ReturnType.Lexeme)
+		if err != nil {
+			return fmt.Errorf("line %d: %v", n.ReturnType.Line, err)
+		}
+		prev := c.returnType
+		c.returnType = retType
 		if err := c.checkBlock(n.Body); err != nil {
+			c.returnType = prev
 			c.pop()
 			return err
 		}
+		c.returnType = prev
 		c.pop()
+		if _, isVoid := retType.(VoidType); !isVoid {
+			if !blockAlwaysReturns(n.Body) {
+				return fmt.Errorf("line %d: function %q does not return on all paths",
+					n.Name.Line, n.Name.Lexeme)
+			}
+		}
 		return nil
 	case *ast.VarDecl:
 		declared, err := typeFromLexeme(n.Type.Lexeme)
 		if err != nil {
 			return fmt.Errorf("line %d: %v", n.Type.Line, err)
+		}
+		if _, ok := declared.(VoidType); ok {
+			return fmt.Errorf("line %d: cannot declare variable of type void", n.Name.Line)
 		}
 		actual, err := c.checkExpr(n.Value)
 		if err != nil {
@@ -154,10 +176,23 @@ func (c *Checker) checkStmt(s ast.Stmt) error {
 		c.pop()
 		return nil
 	case *ast.RunStmt:
+		name := n.Target.Lexeme
+		_, isTask := c.tasks[name]
+		_, isPipeline := c.pipelines[name]
+		if !isTask && !isPipeline {
+			return fmt.Errorf("line %d: undefined task or pipeline %q", n.Target.Line, name)
+		}
 		return nil
 	case *ast.ReturnStmt:
-		_, err := c.checkExpr(n.Value)
-		return err
+		actual, err := c.checkExpr(n.Value)
+		if err != nil {
+			return err
+		}
+		if c.returnType != nil && !typesCompatible(actual, c.returnType) {
+			return fmt.Errorf("line %d: cannot return %s from function declared to return %s",
+				n.Keyword.Line, actual.typeString(), c.returnType.typeString())
+		}
+		return nil
 	case *ast.ExprStmt:
 		t, err := c.checkExpr(n.Expr)
 		if err != nil {
@@ -219,6 +254,15 @@ func (c *Checker) checkExpr(e ast.Expr) (Type, error) {
 }
 
 func (c *Checker) checkCall(n *ast.CallExpr) (Type, error) {
+	if n.Name.Lexeme == "print" {
+		if len(n.Args) != 1 {
+			return nil, fmt.Errorf("line %d: print expects 1 argument, got %d", n.Name.Line, len(n.Args))
+		}
+		if _, err := c.checkExpr(n.Args[0]); err != nil {
+			return nil, err
+		}
+		return TVoid, nil
+	}
 	fn, ok := c.funs[n.Name.Lexeme]
 	if !ok {
 		return nil, fmt.Errorf("line %d: undeclared function %q", n.Name.Line, n.Name.Lexeme)
@@ -267,7 +311,13 @@ func (c *Checker) checkBinary(n *ast.BinaryExpr) (Type, error) {
 		}
 		return TBool, nil
 	case token.EQ, token.NEQ:
-		if left != right {
+		if _, ok := left.(VoidType); ok {
+			return nil, fmt.Errorf("line %d: void is not comparable", n.Op.Line)
+		}
+		if _, ok := right.(VoidType); ok {
+			return nil, fmt.Errorf("line %d: void is not comparable", n.Op.Line)
+		}
+		if !typesCompatible(left, right) && !typesCompatible(right, left) {
 			return nil, fmt.Errorf("line %d: cannot compare %s with %s",
 				n.Op.Line, left.typeString(), right.typeString())
 		}
@@ -310,6 +360,25 @@ func (c *Checker) checkUnary(n *ast.UnaryExpr) (Type, error) {
 		return TBool, nil
 	}
 	return nil, fmt.Errorf("unknown unary op %q", n.Op.Lexeme)
+}
+
+func blockAlwaysReturns(b *ast.Block) bool {
+	for _, s := range b.Stmts {
+		if stmtAlwaysReturns(s) {
+			return true
+		}
+	}
+	return false
+}
+
+func stmtAlwaysReturns(s ast.Stmt) bool {
+	switch n := s.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.IfStmt:
+		return n.Else != nil && blockAlwaysReturns(n.Then) && blockAlwaysReturns(n.Else)
+	}
+	return false
 }
 
 func isNumeric(t Type) bool {
