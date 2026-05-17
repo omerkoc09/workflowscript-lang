@@ -319,12 +319,12 @@ func (p *Parser) parseWhileStmt() (*ast.WhileStmt, error) {
 }
 
 func (p *Parser) parseReturnStmt() (*ast.ReturnStmt, error) {
-	p.advance() // consume "return"
+	kw := p.advance() // consume "return"
 	val, err := p.parseExpr()
 	if err != nil {
 		return nil, err
 	}
-	return &ast.ReturnStmt{Value: val}, nil
+	return &ast.ReturnStmt{Keyword: kw, Value: val}, nil
 }
 
 func (p *Parser) parseRunStmt() (*ast.RunStmt, error) {

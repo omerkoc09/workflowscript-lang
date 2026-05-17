@@ -224,7 +224,8 @@ func (r *RunStmt) stmtNode()            {}
 
 // ReturnStmt: return expr
 type ReturnStmt struct {
-	Value Expr
+	Keyword token.Token
+	Value   Expr
 }
 
 func (r *ReturnStmt) TokenLiteral() string { return "return" }
