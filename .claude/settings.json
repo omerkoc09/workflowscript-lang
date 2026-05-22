@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/omerkoc/GolandProjects/mini-programming-language log --format=\"%H %s\")",
+      "Bash(git -C /Users/omerkoc/GolandProjects/mini-programming-language log --format=\"%H%n%B%n---\")",
+      "Bash(git -C /Users/omerkoc/GolandProjects/mini-programming-language log --format=\"%H %s\" --grep=\"Co-Authored-By\")",
+      "Bash(git -C /Users/omerkoc/GolandProjects/mini-programming-language log --format=\"%H%n%B%n===\" ee61984 7234b26)"
+    ]
+  }
+}

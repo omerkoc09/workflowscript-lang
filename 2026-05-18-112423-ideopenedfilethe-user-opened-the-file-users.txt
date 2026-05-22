@@ -1,0 +1,1008 @@
+╭─── Claude Code v2.1.143 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Ömer!                 │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Added plugin dependenc… │
+│   Sonnet 4.6 · Claude Pro · ofk6409@gmail.com's    │ Added projected contex… │
+│   Organization                                     │ Added `worktree.bgIsol… │
+│     ~/GolandProjects/mini-programming-language     │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ <ide_opened_file>The user opened the file                                     
+  /Users/omerkoc/GolandProjects/mini-programming-language/.claude/settings.json 
+   in the IDE. This may or may not be related to the current                    
+  task.</ide_opened_file>                                                       
+
+❯ @CSE341_Project_Handout.pdf  projenin part-1 ini teslim ettik şimdi part-2 yi 
+   yapmamız gerekiyor. Ne eksik tespit et. Design kararlarını bana sor.         
+  Varsayım yapma.                                                               
+  ⎿  Referenced PDF CSE341_Project_Handout.pdf (12 pages)
+
+⏺ PDF'i ve mevcut kodu inceliyorum.
+
+  Read 1 file, listed 1 directory (ctrl+o to expand)
+
+⏺ Şimdi mevcut kodu inceleyelim.
+
+  Read 5 files (ctrl+o to expand)
+
+⏺ Bash(ls /Users/omerkoc/GolandProjects/mini-programming-language/examples/ &&
+      echo "---" && find
+      /Users/omerkoc/GolandProjects/mini-programming-language/examples -typ…)
+  ⎿  invalid
+     valid
+     ---
+     … +19 lines (ctrl+o to expand)
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Yeterince bilgim var. Şimdi ne eksik olduğunu özetleyeyim ve design
+  kararlarını sorayım.
+
+  ---
+  Part 2 için ne eksik
+
+  D1 — Doküman (yeni bölümler [P2])
+
+  Bunlar tamamen eksik — koda değil, PDF'e yazılacak:
+  - §4.4 Semantics: 2 construct için operasyonel ya da denotasyonel semantik
+  - §4.5 Type System: 5 soru (strong/weak, coercion, equivalence, structured
+  type kararları)
+  - §4.7 Expressions & Assignment: 4 soru (precedence tablosu, short-circuit,
+  eval sırası, assignment)
+  - §4.8 Design Rationale: Her karar için 1 paragraf + trade-off
+
+  D2 — Implementation (eksikler)
+
+  1. run statement runtime validation: Şu an run undefined_task yazsan sadece
+  [run] undefined_task basar, hata vermez. Bir domain-specific runtime error
+  gerekiyor.
+  2. Short-circuit AND/OR: Şu an her iki taraf da eager eval ediliyor (left && 
+  right değil, önce left ve right ayrı ayrı hesaplanıyor). §4.7 için bu kararı
+  netleştirip implement etmek gerekebilir.
+  3. Pipeline run: run somePipeline çağırılınca stage'ler execute edilmiyor,
+  sadece isim basılıyor.
+
+  D3 — Example Programs (eksikler)
+
+  - Her 3 programın actual output'u eklenmeli
+  - Type error'ü yakalayan en az 1 program eklenmeli (tip hatası mesajı
+  gösterilmeli)
+  - Her program için 3-5 cümle açıklama
+
+  D4/D5
+
+  - AI Journal devamı (9-22 May arası min. 6 entry)
+  - Retrospective güncelleme
+
+  ---
+  Şimdi design kararlarını soruyorum — varsayım yapmıyorum:
+
+⏺ User answered Claude's questions:
+  ⎿  · `&&` ve `||` operatörleri için short-circuit evaluation istiyor musun? → 
+     Evet, short-circuit
+     · `run somePipeline` çalıştırılınca ne olsun? → Stage'leri sırayla execute 
+     et
+     · Domain-specific runtime error olarak ne istesin? `run` statement'ı için 
+     şu an hiç kontrol yok. → Undefined task/pipeline hatası
+     · Örnek programlarda kullanıcıya görünür çıktı üretmek için bir `print` 
+     built-in'e ihtiyaç var mı? → Evet, print built-in ekle
+
+⏺ İyi. Birkaç daha D1 dokümanı için karar:
+
+⏺ User answered Claude's questions:
+  ⎿  · Type equivalence için hangi kural? (D1 §4.5 sorusu) → Name equivalence
+     · Operand evaluation sırası tanımlı mı? (D1 §4.7 sorusu) → Sol-dan sağa 
+     (defined)
+     · Assignment bir statement mı yoksa expression mı? (D1 §4.7 sorusu) → 
+     Statement (sadece)
+
+⏺ Kararları kaydedeyim, sonra tam implementation planını çıkarayım.
+
+  Read 1 file, recalled 2 memories (ctrl+o to expand)
+
+⏺ Mevcut memory'yi Part 2 kararlarıyla güncelleyeyim.
+
+  Wrote 1 memory (ctrl+o to expand)
+
+⏺ ---
+  Kararlar kaydedildi. İşte Part 2 için tam resim:
+
+  Ne yapılacak — Part 2
+
+  Kod değişiklikleri (D2)
+
+  ┌─────┬────────────────────┬────────────────┬─────────────────────────────┐
+  │  #  │         Ne         │     Nerede     │             Not             │
+  ├─────┼────────────────────┼────────────────┼─────────────────────────────┤
+  │ 1   │ Short-circuit      │ eval.go:274    │ left false/true ise right   │
+  │     │ AND/OR             │                │ eval etme                   │
+  ├─────┼────────────────────┼────────────────┼─────────────────────────────┤
+  │ 2   │ run pipeline       │ eval.go:110    │ Stage'leri sırayla execute  │
+  │     │ execution          │                │ et                          │
+  ├─────┼────────────────────┼────────────────┼─────────────────────────────┤
+  │     │ Undefined target   │                │ run foo → hedef             │
+  │ 3   │ runtime error      │ eval.go:110    │ tasks/pipelines'da yoksa    │
+  │     │                    │                │ hata                        │
+  ├─────┼────────────────────┼────────────────┼─────────────────────────────┤
+  │ 4   │ print built-in     │ eval.go:183    │ evalCall'da "print" özel    │
+  │     │                    │                │ case                        │
+  ├─────┼────────────────────┼────────────────┼─────────────────────────────┤
+  │ 5   │ Checker RunStmt    │ checker.go:156 │ Compile-time: run hedefi    │
+  │     │ validasyonu        │                │ tanımlı mı?                 │
+  └─────┴────────────────────┴────────────────┴─────────────────────────────┘
+
+  Doküman (D1 — PDF'e eklenecek bölümler)
+
+  - §4.4 Semantics: while ve run pipeline için operational semantics (inference
+  rule notasyonu)
+  - §4.5 Type System: 5 soruyu yanıtla (zaten kararlar belli)
+  - §4.7 Expressions & Assignment: Precedence tablosu + short-circuit ✓ + L→R ✓
+  + statement ✓
+  - §4.8 Design Rationale: Her karar için 1 paragraf
+
+  Test programı (D3)
+
+  Mevcut 3 programa output eklenecek + type error gösteren 1 yeni program.
+
+  ---
+  Kodlamaya başlayalım mı? Yukarıdaki 5 kod değişikliğini implement edebilirim.
+
+❯ <ide_opened_file>The user opened the file /Users/omerkoc/.claude/projects/-Us 
+  ers-omerkoc-GolandProjects-mini-programming-language/memory/MEMORY.md in the  
+  IDE. This may or may not be related to the current task.</ide_opened_file>    
+
+❯ daha önce interpreter ve type checker ı yazmıştık onun design kararlarını     
+  gözden geçirelim.                                                             
+
+⏺ Mevcut implementasyonu gözden geçiriyorum.
+
+  Read 4 files (ctrl+o to expand)
+
+⏺ Şimdi tüm implementasyonu kafamda birleştirdim. Kod üzerinden gözden
+  geçirelim:
+
+  ---
+  Type Checker — Mevcut Kararlar
+
+  Doğru ve tutarlı olanlar:
+
+  ┌──────────────────────────┬───────────────┬──────────────────────────────┐
+  │          Karar           │    Nerede     │             Not              │
+  ├──────────────────────────┼───────────────┼──────────────────────────────┤
+  │ Strong typing            │ checker.go:98 │ typesCompatible ile sıkı     │
+  │                          │               │ kontrol                      │
+  ├──────────────────────────┼───────────────┼──────────────────────────────┤
+  │ int → float coercion     │ types.go:31   │ float → int yok, doğru       │
+  │ (tek yön)                │               │                              │
+  ├──────────────────────────┼───────────────┼──────────────────────────────┤
+  │ Name equivalence         │ types.go:9    │ Her tip ayrı struct, doğru   │
+  ├──────────────────────────┼───────────────┼──────────────────────────────┤
+  │ Forward declaration      │ checker.go:41 │ First-pass ile tasks + funs  │
+  │                          │               │ kayıt                        │
+  ├──────────────────────────┼───────────────┼──────────────────────────────┤
+  │ Static scoping           │ checker.go:36 │ Scope stack, push/pop        │
+  └──────────────────────────┴───────────────┴──────────────────────────────┘
+
+  Sorunlu veya eksik olanlar:
+
+  1. RunStmt checker'da hiçbir şey kontrol etmiyor:
+  // checker.go:156
+  case *ast.RunStmt:
+      return nil  // ← target tanımlı mı? Kontrol yok.
+  run undefinedThing yazar, checker geçirir, interpreter sadece [run] 
+  undefinedThing basar.
+
+  2. Return type doğrulaması yok:
+  case *ast.ReturnStmt:
+      _, err := c.checkExpr(n.Value)  // ← tipi kontrol ediyor ama
+      return err                       // fonksiyonun dönüş tipiyle 
+  karşılaştırmıyor
+  fun f() -> int { return true } — checker bunu geçirir, hata vermez.
+
+  3. Void fonksiyonda return expr kontrol edilmiyor:
+  fun f() -> void { return 42 } yasal görünüyor ama olmamalı.
+
+  ---
+  Interpreter — Mevcut Kararlar
+
+  Doğru olanlar:
+
+  ┌─────────────────────────┬───────────────────────────────────────────────┐
+  │          Karar          │                    Nerede                     │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Call-by-value           │ eval.go:189 — değer kopyalanıp env'e set      │
+  │                         │ ediliyor                                      │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Static scoping          │ eval.go:189 — NewEnv(interp.env), caller env  │
+  │                         │ değil                                         │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ int/int = int           │ eval.go:241                                   │
+  │ (truncated)             │                                               │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Mixed int+float → float │ eval.go:221                                   │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Division by zero hatası │ eval.go:243                                   │
+  ├─────────────────────────┼───────────────────────────────────────────────┤
+  │ Stack-dynamic lifetime  │ eval.go:87 — block bitince env GC'ye gidiyor  │
+  └─────────────────────────┴───────────────────────────────────────────────┘
+
+  Sorunlu olanlar:
+
+  4. AND/OR eager (şu an) — short-circuit'e geçmek gerekiyor:
+  // eval.go:275 — ŞU AN
+  case token.AND:
+      return left.(bool) && right.(bool), nil  // ← her iki taraf zaten eval 
+  edilmiş durumda
+  left ve right yukarıda eval.go:208-215 satırlarında evaluate ediliyor.
+  Değişmesi gereken yer orası.
+
+  5. Pipeline execute edilmiyor:
+  // eval.go:52-54
+  case *ast.TaskDecl, *ast.FunDecl, *ast.PipelineDecl:
+      continue  // ← run pipeline çağrılınca stage'ler çalışmıyor
+
+  ---
+  Kritik soru: Return type checking
+
+  Şimdiye kadar bunu konuşmadık. Checker'ın fonksiyon dönüş tipi kontrolü eksik:
+  - fun f() -> int { return true } → şu an geçiyor ❌
+  - fun f() -> void { return 42 } → şu an geçiyor ❌
+
+⏺ User answered Claude's questions:
+  ⎿  · Return type checking ekleyelim mi? fun f() -> int { return true } tipi 
+     hata vermeli mi? → Evet, return tipini kontrol et
+     · Checker'da RunStmt için static check ekleyelim mi? → Evet, 
+     compile-time'da kontrol et
+
+⏺ Kararlar netleşti. Memory'yi güncelleyeyim.
+  Recalled 1 memory, wrote 2 memories (ctrl+o to expand)
+
+⏺ Kararlar kaydedildi. Şimdi tam tablo:
+
+  ---
+  Tüm Confirmed Kararlar — Part 2
+
+  Type Checker değişiklikleri
+
+  ┌─────┬────────────────────────────────────────┬────────────────┬─────────┐
+  │  #  │               Değişiklik               │     Dosya      │  Durum  │
+  ├─────┼────────────────────────────────────────┼────────────────┼─────────┤
+  │ 1   │ Return tipini fonksiyon dönüş tipiyle  │ checker.go     │ Eksik   │
+  │     │ karşılaştır                            │                │ ❌      │
+  ├─────┼────────────────────────────────────────┼────────────────┼─────────┤
+  │ 2   │ RunStmt → compile-time task/pipeline   │ checker.go:156 │ Eksik   │
+  │     │ kontrolü                               │                │ ❌      │
+  └─────┴────────────────────────────────────────┴────────────────┴─────────┘
+
+  Interpreter değişiklikleri
+
+  ┌─────┬───────────────────────────────────────────┬─────────────┬─────────┐
+  │  #  │                Değişiklik                 │    Dosya    │  Durum  │
+  ├─────┼───────────────────────────────────────────┼─────────────┼─────────┤
+  │ 3   │ Short-circuit AND/OR                      │ eval.go:207 │ Eksik   │
+  │     │                                           │             │ ❌      │
+  ├─────┼───────────────────────────────────────────┼─────────────┼─────────┤
+  │ 4   │ run pipelineName → stage'leri sırayla     │ eval.go:110 │ Eksik   │
+  │     │ execute                                   │             │ ❌      │
+  ├─────┼───────────────────────────────────────────┼─────────────┼─────────┤
+  │ 5   │ print built-in                            │ eval.go:183 │ Eksik   │
+  │     │                                           │             │ ❌      │
+  └─────┴───────────────────────────────────────────┴─────────────┴─────────┘
+
+  Mevcut, doğru çalışıyor
+
+  - Static scoping ✓ — eval.go:189
+  - Call-by-value ✓ — eval.go:189-196
+  - int/int = int (truncated) ✓ — eval.go:241
+  - Mixed int+float → float ✓ — eval.go:221
+  - Division by zero ✓ — eval.go:243
+  - int→float coercion (tek yön) ✓ — types.go:31
+  - Strong typing ✓ — checker.go:98
+  - Name equivalence ✓ — types.go:9
+
+  ---
+  5 değişiklik var. Kodlamaya geçelim mi?
+
+❯ A type checker consistent with the type system you declared in your final D1  
+  (strong/weak typing,                                                          
+  coercion rules, type equivalence).                                            
+  • An interpreter that executes programs respecting your declared scoping      
+  rule, precedence, associativity,                                              
+  and parameter-passing mode.                                                   
+  • Informative runtime errors for division by zero, index out of range (if     
+  applicable), and at least one                                                 
+  domain-specific error                                                         
+                                                                                
+  bunlardan eksik var mı?                                                       
+
+⏺ Üç gereksinimi tek tek koda karşı kontrol edeyim.
+
+  ---
+  1. Type checker — D1 ile tutarlı mı?
+
+  ┌───────────────────────────────────────────────────┬────────────────────┐
+  │                     D1 Kararı                     │ Checker'da var mı? │
+  ├───────────────────────────────────────────────────┼────────────────────┤
+  │ Strong typing (tip uyumsuzluğu hata)              │ ✓ checker.go:98    │
+  ├───────────────────────────────────────────────────┼────────────────────┤
+  │ int → float coercion                              │ ✓ types.go:31      │
+  ├───────────────────────────────────────────────────┼────────────────────┤
+  │ Name equivalence                                  │ ✓ types.go:9       │
+  ├───────────────────────────────────────────────────┼────────────────────┤
+  │ Return tipini fonksiyon dönüş tipiyle karşılaştır │ ❌ eksik           │
+  └───────────────────────────────────────────────────┴────────────────────┘
+
+  fun f() -> int { return true } şu an checker'dan geçiyor. D1'de "strongly
+  typed" diyorsan bu tutarsızlık.
+
+  ---
+  2. Interpreter — scoping, precedence, associativity, parameter-passing?
+
+  ┌───────────────────────────────┬─────────────────────────────────────────┐
+  │             Karar             │         Interpreter'da var mı?          │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ Static scoping                │ ✓ eval.go:189 NewEnv(interp.env)        │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ Precedence                    │ ✓ parser'da recursive descent ile       │
+  │ (OR→AND→==→<>→+−→*/→unary)    │                                         │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ Left-associativity            │ ✓ for loop ile left-fold                │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │ Call-by-value                 │ ✓ eval.go:193 değer kopyalanıyor        │
+  ├───────────────────────────────┼─────────────────────────────────────────┤
+  │                               │ ❌ eksik — D1'de short-circuit          │
+  │ Short-circuit AND/OR          │ diyeceksin ama şu an her iki taraf eval │
+  │                               │  ediliyor                               │
+  └───────────────────────────────┴─────────────────────────────────────────┘
+
+  ---
+  3. Runtime errors — division by zero, domain-specific?
+
+  ┌──────────────────────────┬─────────────────┐
+  │           Hata           │     Var mı?     │
+  ├──────────────────────────┼─────────────────┤
+  │ Division by zero (int)   │ ✓ eval.go:243   │
+  ├──────────────────────────┼─────────────────┤
+  │ Division by zero (float) │ ✓ eval.go:248   │
+  ├──────────────────────────┼─────────────────┤
+  │ Index out of range       │ N/A — dizin yok │
+  ├──────────────────────────┼─────────────────┤
+  │ Domain-specific          │ ❌ eksik        │
+  └──────────────────────────┴─────────────────┘
+
+  run undefined_task şu an sadece [run] undefined_task yazıyor, hata vermiyor.
+  Bu doğrudan gereksinimi karşılamıyor.
+
+  ---
+  Özet: Eksik olan 3 şey
+
+  ❌ Return type checking (type checker D1 tutarsızlığı)
+  ❌ Short-circuit AND/OR (interpreter D1 tutarsızlığı)
+  ❌ Domain-specific runtime error (run → undefined target)
+
+  Bunları implement edelim mi?
+
+❯ <ide_opened_file>The user opened the file                                     
+  /Users/omerkoc/.claude/projects/-Users-omerkoc-GolandProjects-mini-programmin 
+  g-language/memory/project_workflowscript_design.md in the IDE. This may or    
+  may not be related to the current task.</ide_opened_file>                     
+
+❯ project_workflowscript_desing md de eksikse bunlar ekle                       
+
+  Wrote 1 memory (ctrl+o to expand)
+
+⏺ Güncellendi. Checklist artık 6 madde:
+
+  1. Return type checking — D1 strong typing tutarlılığı için
+  2. Short-circuit AND/OR — D1 §4.7 tutarlılığı için
+  3. Domain-specific runtime error — gereksinim direkt karşılamak için
+  4. Pipeline execution — run pipelineName stage'leri çalıştırsın
+  5. print built-in — örnek programlar görünür çıktı üretsin
+  6. RunStmt static check — compile-time'da da yakalanabilsin
+
+  Kodlamaya geçelim mi?
+
+❯ bir programa dili geliştiren kişiden şu tavsiyeleri aldım. Bunları bizim      
+  projeye uyarlarsak nasıl olur sence? incele:                                  
+  Dil implementasyonuyla ilgili benim en buyuk tavsiyelerim sunlar olurdu:      
+  1. Dilin AST'si, type checking'i, interpreter'ini bir kutuphane olarak        
+  yazmak. REPL, derleyici, LSP server, gerekirse MCP server, bu tip seyleri o   
+  kutuphaneyi kullanan uygulamalar olarak yazmayi kolaylastiran bir sey bu.     
+  2. AST'ye source span dahil etmek. Hata mesajlarinin konumunu kolay takip     
+  etmeyi sagliyor. https://github.com/kip-dili/kip/blob/b6cf15e4a16813784fac5ba 
+  5892e8be4865eb834/src/Kip/AST.hs#L73-L77                                      
+  3. Gerek parser'da, gerek type checker'da, veya olabilecek baska her yerde    
+  hata mesajlarini `enum` olarak tanimlamak. Bu sayede sistemin verebilecegi    
+  tum hata mesajlarini cok daha temiz bir sekilde duzenleyebiliyorsunuz.        
+  https://github.com/kip-dili/kip/blob/b6cf15e4a16813784fac5ba5892e8be4865eb834 
+  /src/Kip/Parser.hs#L113-L133                                                  
+  https://github.com/kip-dili/kip/blob/b6cf15e4a16813784fac5ba5892e8be4865eb834 
+  /src/Kip/TypeCheck.hs#L324-L338                                               
+
+⏺ Her öneriyi mevcut kodunuza karşı değerlendireyim.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Şimdi dürüst bir değerlendirme yapabilirim.
+
+  ---
+  Öneri 1: Kütüphane mimarisi
+
+  Kodunuzda zaten var. internal/ paketleri kütüphane, cmd/wsc/main.go uygulama.
+  Go'nun internal/ kuralı tam da bunu yapıyor. REPL veya LSP eklemek isteseniz
+  sadece yeni bir cmd/ altına yazarsınız.
+
+  Sonuç: Yapılacak bir şey yok.
+
+  ---
+  Öneri 2: AST'ye source span eklemek
+
+  Token'ınızda sadece Line var, Col yok. Dahası bazı AST node'larında token
+  referansı hiç yok:
+
+  // ast.go — IfStmt, WhileStmt'te başlangıç token'ı kayıt altında değil
+  type IfStmt struct {
+      Condition Expr
+      Then      *Block
+      Else      *Block  // "if" token'ının Line bilgisi nerede?
+  }
+
+  Hata mesajlarında zaten line %d kullanıyorsunuz ama column bilgisi yok. Tam
+  span (line:col) eklemek için Token struct'ına Col int ekleyip lexer'ı
+  güncellemek gerekir — sonra tüm AST node'larına da yansıtılır.
+
+  Bu proje için değer/maliyet: Rubric'te "informative runtime errors" var ama
+  column bilgisi şart değil. 5 günde öncelikli değil.
+
+  ---
+  Öneri 3: Hataları enum olarak tanımlamak
+
+  Şu an her hata fmt.Errorf("line %d: ...") formatında string. Önerilen
+  yaklaşım:
+
+  // Şu an
+  return nil, fmt.Errorf("line %d: cannot assign %s to variable of type %s",
+  ...)
+
+  // Önerilen
+  type TypeError struct {
+      Line     int
+      Expected Type
+      Got      Type
+  }
+  func (e *TypeError) Error() string { ... }
+
+  Bu proje için değer/maliyet: Test yazımını kolaylaştırır (errors.As ile tip
+  kontrolü), ama Part 2 rubric'inde bunu sormuyorlar. Refactor maliyeti yüksek,
+  fayda sınırlı.
+
+  ---
+  Sonuç
+
+  ┌────────────────────┬──────────────────────────┬───────────────────────┐
+  │       Öneri        │          Durum           │        Öncelik        │
+  ├────────────────────┼──────────────────────────┼───────────────────────┤
+  │ Kütüphane mimarisi │ Zaten yapılmış           │ —                     │
+  ├────────────────────┼──────────────────────────┼───────────────────────┤
+  │ Source spans (col) │ Kısmen var (sadece line) │ Düşük — 5 gün kaldı   │
+  ├────────────────────┼──────────────────────────┼───────────────────────┤
+  │ Error enum'ları    │ Yok                      │ Düşük — rubric'te yok │
+  └────────────────────┴──────────────────────────┴───────────────────────┘
+
+  Tavsiye: Bunları uygulamak yerine 5 eksik implementasyon maddesini (return
+  type check, short-circuit, domain error, pipeline run, print built-in)
+  bitirmek çok daha etkili. Bu öneriler production bir dil için doğru ama bu
+  projenin sınırları içinde maliyet/fayda dengesi tutmuyor.
+
+❯ tamam project_workflowscript design ı implement edelim                        
+
+⏺ Skill(superpowers:test-driven-development)
+  ⎿  Successfully loaded skill
+
+⏺ Önce mevcut test yapısına bakayım.
+
+  Read 2 files (ctrl+o to expand)
+
+⏺ Checker testlerini yazıyorum.
+
+⏺ Update(internal/checker/checker_test.go)
+  ⎿  Added 29 lines
+       85      t.Error("expected error for invalid task field")
+       86    }
+       87  }
+       88 +                                                              
+       89 +func TestChecker_ReturnTypeMismatch(t *testing.T) {           
+       90 +  err := check(t, `fun f() -> int { return true }`)           
+       91 +  if err == nil {                                             
+       92 +    t.Error("expected type error: returning bool from int func
+          +tion")                                                        
+       93 +  }                                                           
+       94 +}                                                             
+       95 +                                                              
+       96 +func TestChecker_VoidFunctionReturnValue(t *testing.T) {      
+       97 +  src := `                                                    
+       98 +task build { timeout: 10 retries: 0 parallel: false }         
+       99 +fun notify() -> void { return 42 }                            
+      100 +`                                                             
+      101 +  if err := check(t, src); err == nil {                       
+      102 +    t.Error("expected type error: returning value from void fu
+          +nction")                                                      
+      103 +  }                                                           
+      104 +}                                                             
+      105 +                                                              
+      106 +func TestChecker_RunUndefinedTarget(t *testing.T) {           
+      107 +  if err := check(t, `run ghost`); err == nil {               
+      108 +    t.Error("expected compile-time error for undefined task or
+          + pipeline 'ghost'")                                           
+      109 +  }                                                           
+      110 +}                                                             
+      111 +                                                              
+      112 +func TestChecker_PrintBuiltin(t *testing.T) {                 
+      113 +  if err := check(t, `print(42)`); err != nil {               
+      114 +    t.Errorf("print should be recognized as a built-in: %v", e
+          +rr)                                                           
+      115 +  }                                                           
+      116 +}                                                             
+
+⏺ Update(internal/eval/eval_test.go)
+  ⎿  Added 61 lines
+       87    }
+       88  }
+       89  
+       90 +func runRaw(t *testing.T, src string) error {                 
+       91 +  t.Helper()                                                  
+       92 +  l := lexer.New(src)                                         
+       93 +  tokens, err := l.Tokenize()                                 
+       94 +  if err != nil {                                             
+       95 +    t.Fatalf("lexer: %v", err)                                
+       96 +  }                                                           
+       97 +  p := parser.New(tokens)                                     
+       98 +  prog, err := p.ParseProgram()                               
+       99 +  if err != nil {                                             
+      100 +    t.Fatalf("parser: %v", err)                               
+      101 +  }                                                           
+      102 +  return New().Run(prog)                                      
+      103 +}                                                             
+      104 +                                                              
+      105 +func TestEval_ShortCircuitAnd(t *testing.T) {                 
+      106 +  // Right side divides by zero; short-circuit must prevent ev
+          +aluation                                                      
+      107 +  if err := runRaw(t, `var x: bool = false && (1 / 0 == 0)`); 
+          +err != nil {                                                  
+      108 +    t.Errorf("short-circuit AND: right side should not be eval
+          +uated, got: %v", err)                                         
+      109 +  }                                                           
+      110 +}                                                             
+      111 +                                                              
+      112 +func TestEval_ShortCircuitOr(t *testing.T) {                  
+      113 +  // Right side divides by zero; short-circuit must prevent ev
+          +aluation                                                      
+      114 +  if err := runRaw(t, `var x: bool = true || (1 / 0 == 0)`); e
+          +rr != nil {                                                   
+      115 +    t.Errorf("short-circuit OR: right side should not be evalu
+          +ated, got: %v", err)                                          
+      116 +  }                                                           
+      117 +}                                                             
+      118 +                                                              
+      119 +func TestEval_RunUndefinedTarget(t *testing.T) {              
+      120 +  if err := runRaw(t, `run ghost`); err == nil {              
+      121 +    t.Error("expected runtime error for undefined task or pipe
+          +line 'ghost'")                                                
+      122 +  }                                                           
+      123 +}                                                             
+      124 +                                                              
+      125 +func TestEval_PipelineExecution(t *testing.T) {               
+      126 +  src := `                                                    
+      127 +task build { timeout: 30 retries: 0 parallel: false }         
+      128 +task test  { timeout: 60 retries: 2 parallel: true  }         
+      129 +pipeline ci {                                                 
+      130 +    stage build                                               
+      131 +    stage test                                                
+      132 +}                                                             
+      133 +run ci                                                        
+      134 +`                                                             
+      135 +  if err := runRaw(t, src); err != nil {                      
+      136 +    t.Errorf("pipeline execution should not error: %v", err)  
+      137 +  }                                                           
+      138 +}                                                             
+      139 +                                                              
+      140 +func TestEval_PrintBuiltin(t *testing.T) {                    
+      141 +  src := `                                                    
+      142 +fun double(x: int) -> int { return x * 2 }                    
+      143 +var result: int = double(21)                                  
+      144 +print(result)                                                 
+      145 +`                                                             
+      146 +  if err := runRaw(t, src); err != nil {                      
+      147 +    t.Errorf("print built-in should not error: %v", err)      
+      148 +  }                                                           
+      149 +}                                                             
+      150 +                                                              
+      151  func TestEval_StaticScoping(t *testing.T) {
+      152    src := `
+      153  var x: int = 10
+
+⏺ Testlerin kırmızı olduğunu doğruluyorum.
+
+⏺ Bash(go test ./... 2>&1)  ⎿  Error: Exit code 1
+     ?          workflowscript/cmd/wsc  [no test files]
+     ?          workflowscript/internal/ast     [no test files]
+     ?          workflowscript/internal/token   [no test files]
+     --- FAIL: TestChecker_ReturnTypeMismatch (0.00s)
+         checker_test.go:92: expected type error: returning bool from int 
+     function
+     --- FAIL: TestChecker_VoidFunctionReturnValue (0.00s)
+         checker_test.go:102: expected type error: returning value from void 
+     function
+     --- FAIL: TestChecker_RunUndefinedTarget (0.00s)
+         checker_test.go:108: expected compile-time error for undefined task or 
+     pipeline 'ghost'
+     … +19 lines (ctrl+o to expand)
+
+⏺ Tüm testler kırmızı — iyi. Ama TestEval_PipelineExecution yanlış sebepten
+  geçti (run ci hata vermeden [run] ci bastı). Testi güçlendirmem lazım.
+
+⏺ Update(internal/eval/eval_test.go)
+  ⎿  Added 16 lines, removed 2 lines
+      132  }
+      133  run ci
+      134  `
+      135 -  if err := runRaw(t, src); err != nil {                      
+      136 -    t.Errorf("pipeline execution should not error: %v", err)  
+      135 +  l := lexer.New(src)                                         
+      136 +  tokens, _ := l.Tokenize()                                   
+      137 +  p := parser.New(tokens)                                     
+      138 +  prog, _ := p.ParseProgram()                                 
+      139 +  interp := New()                                             
+      140 +  if err := interp.Run(prog); err != nil {                    
+      141 +    t.Fatalf("pipeline execution should not error: %v", err)  
+      142    }
+      143 +  expected := []string{"build", "test"}                       
+      144 +  if len(interp.runLog) != len(expected) {                    
+      145 +    t.Fatalf("expected stages %v, got runLog %v", expected, in
+          +terp.runLog)                                                  
+      146 +  }                                                           
+      147 +  for i, want := range expected {                             
+      148 +    if interp.runLog[i] != want {                             
+      149 +      t.Errorf("stage[%d]: expected %q, got %q", i, want, inte
+          +rp.runLog[i])                                                 
+      150 +    }                                                         
+      151 +  }                                                           
+      152  }
+      153  
+      154  func TestEval_PrintBuiltin(t *testing.T) {
+
+⏺ Beklenen compile hatası — test runLog alanını referans alıyor ama henüz yok.
+  RED fazı doğrulandı. Şimdi implementasyona geçiyorum.
+
+⏺ Adım 1: ReturnStmt'e keyword token ekle (satır numarası için)
+
+⏺ Update(internal/ast/ast.go)
+  ⎿  Added 2 lines, removed 1 line
+      224  
+      225  // ReturnStmt: return expr
+      226  type ReturnStmt struct {
+      227 -  Value Expr                                                  
+      227 +  Keyword token.Token                                         
+      228 +  Value   Expr                                                
+      229  }
+      230  
+      231  func (r *ReturnStmt) TokenLiteral() string { return "return" }
+
+⏺ Update(internal/parser/parser.go)
+  ⎿  Added 2 lines, removed 2 lines
+      319  }
+      320  
+      321  func (p *Parser) parseReturnStmt() (*ast.ReturnStmt, error) {
+      322 -  p.advance() // consume "return"                             
+      322 +  kw := p.advance() // consume "return"                       
+      323    val, err := p.parseExpr()
+      324    if err != nil {
+      325      return nil, err
+      326    }
+      327 -  return &ast.ReturnStmt{Value: val}, nil                     
+      327 +  return &ast.ReturnStmt{Keyword: kw, Value: val}, nil        
+      328  }
+      329  
+      330  func (p *Parser) parseRunStmt() (*ast.RunStmt, error) {
+
+⏺ Adım 2: checker.go güncellemeleri — 3 değişiklik birden
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 9 lines, removed 6 lines
+       7  )
+       8  
+       9  type Checker struct {
+      10 -  scopes []map[string]Type                                     
+      11 -  funs   map[string]*ast.FunDecl                               
+      12 -  tasks  map[string]*ast.TaskDecl                              
+      10 +  scopes     []map[string]Type                                 
+      11 +  funs       map[string]*ast.FunDecl                           
+      12 +  tasks      map[string]*ast.TaskDecl                          
+      13 +  pipelines  map[string]*ast.PipelineDecl                      
+      14 +  returnType Type // expected return type of current function  
+      15  }
+      16  
+      17  func New() *Checker {
+      18    return &Checker{
+      17 -    scopes: []map[string]Type{{}},                             
+      18 -    funs:   map[string]*ast.FunDecl{},                         
+      19 -    tasks:  map[string]*ast.TaskDecl{},                        
+      19 +    scopes:    []map[string]Type{{}},                          
+      20 +    funs:      map[string]*ast.FunDecl{},                      
+      21 +    tasks:     map[string]*ast.TaskDecl{},                     
+      22 +    pipelines: map[string]*ast.PipelineDecl{},                 
+      23    }
+      24  }
+      25  
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 3 lines, removed 1 line
+      40  func (c *Checker) pop()  { c.scopes = c.scopes[:len(c.scopes)-1
+          ] }
+      41  
+      42  func (c *Checker) Check(prog *ast.Program) error {
+      43 -  // First pass: register tasks and functions for forward refer
+         -ences                                                          
+      43 +  // First pass: register tasks, pipelines, and functions for f
+         +orward references                                              
+      44    for _, d := range prog.Decls {
+      45      switch n := d.(type) {
+      46      case *ast.TaskDecl:
+      47        c.tasks[n.Name.Lexeme] = n
+      48        c.define(n.Name.Lexeme, TTask)
+      49 +    case *ast.PipelineDecl:                                    
+      50 +      c.pipelines[n.Name.Lexeme] = n                           
+      51      case *ast.FunDecl:
+      52        c.funs[n.Name.Lexeme] = n
+      53      }
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 8 lines
+       85        }
+       86        c.define(p.Name.Lexeme, t)
+       87      }
+       88 +    retType, err := typeFromLexeme(n.ReturnType.Lexeme)       
+       89 +    if err != nil {                                           
+       90 +      return fmt.Errorf("line %d: %v", n.ReturnType.Line, err)
+       91 +    }                                                         
+       92 +    prev := c.returnType                                      
+       93 +    c.returnType = retType                                    
+       94      if err := c.checkBlock(n.Body); err != nil {
+       95 +      c.returnType = prev                                     
+       96        c.pop()
+       97        return err
+       98      }
+       99 +    c.returnType = prev                                       
+      100      c.pop()
+      101      return nil
+      102    case *ast.VarDecl:
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 15 lines, removed 2 lines
+      167      c.pop()
+      168      return nil
+      169    case *ast.RunStmt:
+      170 +    name := n.Target.Lexeme                                   
+      171 +    _, isTask := c.tasks[name]                                
+      172 +    _, isPipeline := c.pipelines[name]                        
+      173 +    if !isTask && !isPipeline {                               
+      174 +      return fmt.Errorf("line %d: undefined task or pipeline %
+          +q", n.Target.Line, name)                                      
+      175 +    }                                                         
+      176      return nil
+      177    case *ast.ReturnStmt:
+      172 -    _, err := c.checkExpr(n.Value)                            
+      173 -    return err                                                
+      178 +    actual, err := c.checkExpr(n.Value)                       
+      179 +    if err != nil {                                           
+      180 +      return err                                              
+      181 +    }                                                         
+      182 +    if c.returnType != nil && !typesCompatible(actual, c.retur
+          +nType) {                                                      
+      183 +      return fmt.Errorf("line %d: cannot return %s from functi
+          +on declared to return %s",                                    
+      184 +        n.Keyword.Line, actual.typeString(), c.returnType.type
+          +String())                                                     
+      185 +    }                                                         
+      186 +    return nil                                                
+      187    case *ast.ExprStmt:
+      188      t, err := c.checkExpr(n.Expr)
+      189      if err != nil {
+
+⏺ print built-in'i checker'a ekle:
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 9 lines
+      245  }
+      246  
+      247  func (c *Checker) checkCall(n *ast.CallExpr) (Type, error) {
+      248 +  if n.Name.Lexeme == "print" {                               
+      249 +    if len(n.Args) != 1 {                                     
+      250 +      return nil, fmt.Errorf("line %d: print expects 1 argumen
+          +t, got %d", n.Name.Line, len(n.Args))                         
+      251 +    }                                                         
+      252 +    if _, err := c.checkExpr(n.Args[0]); err != nil {         
+      253 +      return nil, err                                         
+      254 +    }                                                         
+      255 +    return TVoid, nil                                         
+      256 +  }                                                           
+      257    fn, ok := c.funs[n.Name.Lexeme]
+      258    if !ok {
+      259      return nil, fmt.Errorf("line %d: undeclared function %q", 
+           n.Name.Line, n.Name.Lexeme)
+
+⏺ Adım 3: eval.go güncellemeleri
+
+⏺ Update(internal/eval/eval.go)
+  ⎿  Added 9 lines, removed 6 lines
+      15  }
+      16  
+      17  type Interpreter struct {
+      18 -  env   *Env                                                   
+      19 -  funs  map[string]*ast.FunDecl                                
+      20 -  tasks map[string]*TaskValue                                  
+      18 +  env       *Env                                               
+      19 +  funs      map[string]*ast.FunDecl                            
+      20 +  tasks     map[string]*TaskValue                              
+      21 +  pipelines map[string]*ast.PipelineDecl                       
+      22 +  runLog    []string // tracks executed task/stage names (for t
+         +esting)                                                        
+      23  }
+      24  
+      25  func New() *Interpreter {
+      26    return &Interpreter{
+      25 -    env:   NewEnv(nil),                                        
+      26 -    funs:  map[string]*ast.FunDecl{},                          
+      27 -    tasks: map[string]*TaskValue{},                            
+      27 +    env:       NewEnv(nil),                                    
+      28 +    funs:      map[string]*ast.FunDecl{},                      
+      29 +    tasks:     map[string]*TaskValue{},                        
+      30 +    pipelines: map[string]*ast.PipelineDecl{},                 
+      31    }
+      32  }
+      33  
+
+⏺ Update(internal/eval/eval.go)
+  ⎿  Added 2 lines
+      46        }
+      47        interp.tasks[n.Name.Lexeme] = tv
+      48        interp.env.Set(n.Name.Lexeme, tv)
+      49 +    case *ast.PipelineDecl:                                    
+      50 +      interp.pipelines[n.Name.Lexeme] = n                      
+      51      case *ast.FunDecl:
+      52        interp.funs[n.Name.Lexeme] = n
+      53      }
+
+⏺ RunStmt'i pipeline execution + undefined target error ile güncelle:
+
+⏺ Update(internal/eval/eval.go)
+  ⎿  Added 14 lines, removed 2 lines
+      113      }
+      114      return nil, nil
+      115    case *ast.RunStmt:
+      116 -    fmt.Printf("[run] %s\n", n.Target.Lexeme)                 
+      117 -    return nil, nil                                           
+      116 +    name := n.Target.Lexeme                                   
+      117 +    if _, ok := interp.tasks[name]; ok {                      
+      118 +      fmt.Printf("[run] %s\n", name)                          
+      119 +      interp.runLog = append(interp.runLog, name)             
+      120 +      return nil, nil                                         
+      121 +    }                                                         
+      122 +    if pipeline, ok := interp.pipelines[name]; ok {           
+      123 +      for _, stage := range pipeline.Stages {                 
+      124 +        fmt.Printf("[run] %s\n", stage.Lexeme)                
+      125 +        interp.runLog = append(interp.runLog, stage.Lexeme)   
+      126 +      }                                                       
+      127 +      return nil, nil                                         
+      128 +    }                                                         
+      129 +    return nil, fmt.Errorf("line %d: undefined task or pipelin
+          +e %q", n.Target.Line, name)                                   
+      130    case *ast.ReturnStmt:
+      131      val, err := interp.evalExpr(n.Value, env)
+      132      if err != nil {
+
+⏺ Short-circuit AND/OR ve print built-in'i ekle:
+
+⏺ Update(internal/eval/eval.go)  ⎿  Added 3 lines
+      190    case *ast.CallExpr:
+      191      return interp.evalCall(n, env)
+      192    case *ast.BinaryExpr:
+      193 +    if n.Op.Type == token.AND || n.Op.Type == token.OR {      
+      194 +      return interp.evalLogical(n, env)                       
+      195 +    }                                                         
+      196      return interp.evalBinary(n, env)
+      197    case *ast.UnaryExpr:
+      198      return interp.evalUnary(n, env)
+
+⏺ evalLogical metodunu ekle ve print built-in'i evalCall'a ekle:
+
+⏺ Update(internal/eval/eval.go)
+  ⎿  Added 26 lines
+      200    return nil, fmt.Errorf("unknown expression %T", e)
+      201  }
+      202  
+      203 +func (interp *Interpreter) evalLogical(n *ast.BinaryExpr, env 
+          +*Env) (interface{}, error) {                                  
+      204 +  left, err := interp.evalExpr(n.Left, env)                   
+      205 +  if err != nil {                                             
+      206 +    return nil, err                                           
+      207 +  }                                                           
+      208 +  if n.Op.Type == token.AND && !left.(bool) {                 
+      209 +    return false, nil                                         
+      210 +  }                                                           
+      211 +  if n.Op.Type == token.OR && left.(bool) {                   
+      212 +    return true, nil                                          
+      213 +  }                                                           
+      214 +  right, err := interp.evalExpr(n.Right, env)                 
+      215 +  if err != nil {                                             
+      216 +    return nil, err                                           
+      217 +  }                                                           
+      218 +  return right.(bool), nil                                    
+      219 +}                                                             
+      220 +                                                              
+      221  func (interp *Interpreter) evalCall(n *ast.CallExpr, env *Env)
+            (interface{}, error) {
+      222 +  if n.Name.Lexeme == "print" {                               
+      223 +    val, err := interp.evalExpr(n.Args[0], env)               
+      224 +    if err != nil {                                           
+      225 +      return nil, err                                         
+      226 +    }                                                         
+      227 +    fmt.Println(val)                                          
+      228 +    return nil, nil                                           
+      229 +  }                                                           
+      230    fn, ok := interp.funs[n.Name.Lexeme]
+      231    if !ok {
+      232      return nil, fmt.Errorf("line %d: undeclared function %q", 
+           n.Name.Line, n.Name.Lexeme)
+
+⏺ AND/OR'u evalBinary'den kaldır (artık evalLogical hallediyor):
+
+⏺ Update(internal/eval/eval.go)
+  ⎿  Removed 4 lines
+      317      return left == right, nil
+      318    case token.NEQ:
+      319      return left != right, nil
+      320 -  case token.AND:                                             
+      321 -    return left.(bool) && right.(bool), nil                   
+      322 -  case token.OR:                                              
+      323 -    return left.(bool) || right.(bool), nil                   
+      320    }
+      321    return nil, fmt.Errorf("unknown operator %q", n.Op.Lexeme)
+      322  }
+
+⏺ Şimdi testleri çalıştırıyorum:
+
+⏺ Bash(go test ./... 2>&1)
+  ⎿  ?          workflowscript/cmd/wsc  [no test files]
+     ?          workflowscript/internal/ast     [no test files]
+     ?          workflowscript/internal/token   [no test files]
+     … +4 lines (ctrl+o to expand)
+
+⏺ Tüm testler yeşil. Yapılan değişikliklerin özeti:
+
+  ┌────────────┬─────────────────────────────────────────────────────────────┐
+  │   Dosya    │                         Değişiklik                          │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ ast.go     │ ReturnStmt'e Keyword token.Token eklendi                    │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ parser.go  │ return keyword'ü token olarak saklanıyor                    │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ checker.go │ pipelines map, returnType field; return tip kontrolü; run   │
+  │            │ static check; print built-in                                │
+  ├────────────┼─────────────────────────────────────────────────────────────┤
+  │ eval.go    │ pipelines map, runLog; evalLogical (short-circuit);         │
+  │            │ pipeline execution; undefined target hatası; print built-in │
+  └────────────┴─────────────────────────────────────────────────────────────┘
+
+❯ tamam dokümanı güncelle                                                       
+
+⏺ Önce mevcut dokümanları bulayım.
+
+  Searched for 2 patterns (ctrl+o to expand)
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ /compact                                                                      
+  ⎿  Error: Compaction canceled.

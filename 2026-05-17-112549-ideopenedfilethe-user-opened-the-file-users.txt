@@ -1,0 +1,673 @@
+╭─── Claude Code v2.1.143 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                 Welcome back Ömer!                 │ started                 │
+│                                                    │ Run /init to create a … │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Added plugin dependenc… │
+│   Sonnet 4.6 · Claude Pro · ofk6409@gmail.com's    │ Added projected contex… │
+│   Organization                                     │ Added `worktree.bgIsol… │
+│     ~/GolandProjects/mini-programming-language     │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+❯ <ide_opened_file>The user opened the file                                     
+  /Users/omerkoc/GolandProjects/mini-programming-language/design-spec.md in the 
+   IDE. This may or may not be related to the current task.</ide_opened_file>   
+
+❯ @project_workflowscript_design dosyasındaki ve eğer oraya yapzılamdıysa genel 
+   part-2 implementasyonları (type checker, interpreter) için exam defense doc  
+  oluştur. Çünkü bunların genel proje önceliklendirmeleriyle uyumlu olması      
+  gerekiyor. part-1 in design spec ine bakabilirsin proje konseptini hatırlamak 
+   istersen @design-spec.md                                                     
+  ⎿  Read design-spec.md (349 lines)
+
+⏺ Önce memory dosyasını ve mevcut implementasyonları okuyayım.
+
+  Read 2 files, listed 1 directory, recalled 1 memory (ctrl+o to expand)
+
+⏺ Şimdi test dosyalarına ve örnek programlara bakayım.
+
+  Read 3 files, listed 3 directories (ctrl+o to expand)
+
+⏺ Artık her şeyi gördüm — şimdi kapsamlı exam defense doc'u yazayım.
+
+⏺ Write(EXAM_DEFENSE.md)
+  ⎿  Wrote 433 lines to EXAM_DEFENSE.md
+       1 # WorkflowScript — Part 2 Exam Defense
+       2 
+       3 **CSE341 · Concepts of Programming Languages**
+       4 **Gebze Technical University · 22 May 2026**
+       5 
+       6 ---
+       7 
+       8 ## Genel Mimari
+       9 
+      10 WorkflowScript bir **tree-walking interpreter**'dır. Pipeline:
+     … +516 lines (ctrl+o to expand)
+
+⏺ Şimdi testlerin gerçekten geçtiğini doğrulayalım — savunmada "testlerim var ve
+   geçiyor" diyebilmek için:
+
+⏺ Bash(go test ./...)
+  ⎿  ?          workflowscript/cmd/wsc  [no test files]
+     ?          workflowscript/internal/ast     [no test files]
+     ok         workflowscript/internal/checker (cached)
+     … +4 lines (ctrl+o to expand)
+
+⏺ Tüm testler geçiyor. EXAM_DEFENSE.md dosyası oluşturuldu. İçeriği:
+
+  Checker bölümü şunları kapsar:
+  - Scope stack'i ve static scoping implementasyonu
+  - 5 tip + typesCompatible ile tek yönlü int→float coercion
+  - Return type kontrolü ve void özel durumu
+  - run statement'ın compile-time static check'i
+  - print built-in'in özel case işlemi
+
+  Interpreter bölümü şunları kapsar:
+  - callEnv := NewEnv(interp.env) satırının neden static scoping olduğu (caller
+  env'i değil global)
+  - evalLogical ile short-circuit AND/OR
+  - returnSignal sentinel pattern (panic yerine)
+  - Pipeline stage'lerin sıralı execution'ı
+  - Runtime coercion (mixed int/float aritmetik)
+
+  Savunma notları kısmında "neden static scoping?", "neden int→float tek
+  yönlü?", "pipeline vs fun farkı?" gibi klasik sınavlarda sorulan soruların
+  doğrudan cevapları var. 4 örnek programın beklenen çıktıları da belgelenmiş
+  durumda.
+
+❯ <ide_opened_file>The user opened the file                                     
+  /Users/omerkoc/GolandProjects/mini-programming-language/EXAM_DEFENSE.md in    
+  the IDE. This may or may not be related to the current                        
+  task.</ide_opened_file>                                                       
+
+❯ şimdi part-2 design kararlarımızı ve implementasyon yöntemlerinin düşün.      
+  Bunların için de sebestanın ambiguity olarak ifade ettiği bir yer var mı?     
+  Yani bizi açıklarken zor duruma sokacak "şu şekilde daha iyi yapılabilir      
+  aslında?" dediğin bir yer var mı?                                             
+
+⏺ Kodu ve tasarım kararlarını dikkatle inceleyeyim — savunma açısından riskli
+  noktaları bulmak için.
+
+  Read 2 files (ctrl+o to expand)
+
+⏺ Bash(cat > /tmp/test_gaps.ws << 'EOF'
+      // Test 1: exhaustive return - fonksiyon her path'te return etmez…)
+  ⎿  <nil>
+
+⏺ Bash(cat > /tmp/test_gaps2.ws << 'EOF'
+      // Test 2: EQ/NEQ coercion inconsistency…)
+  ⎿  type error: line 5: cannot compare int with float
+     exit status 1
+
+⏺ Bash(cat > /tmp/test_gaps3.ws << 'EOF'
+      // Test 3: void variable declaration…)
+  ⎿  [run] build
+     <nil>
+
+⏺ Bash(cat > /tmp/test_gaps4.ws << 'EOF'
+      // Test 4: on_failure hiç tetiklenmiyor mu?…)
+  ⎿  [run] build
+     [run] test
+
+⏺ Bash(cat > /tmp/test_gaps5.ws << 'EOF'
+      // Test 5: void == void geçerli mi?…)
+  ⎿  [run] build
+     [run] build
+
+⏺ Bash(cat > /tmp/test_gaps6.ws << 'EOF'
+      // Test 6: < <= > >= ile int vs float karşılaştırması…)
+  ⎿  (No output)
+
+⏺ Tüm test sonuçlarını aldım. 5 gerçek zayıf nokta var. Önem sırasına göre
+  analiz edeyim.
+
+  ---
+  Tespit Edilen Zayıf Noktalar
+
+  1. KRITIK — Exhaustive Return Check Yok
+
+  fun max(a: int, b: int) -> int {
+      if a > b { return a }
+      // else branch yok — checker geçiriyor, runtime nil döndürüyor
+  }
+  var x: int = max(1, 2)
+  print(x)   // çıktı: <nil>
+
+  Checker bunu geçiriyor. Runtime'da fonksiyon nil döndürüyor, program sessizce
+  çalışıyor. Java, Go, Kotlin bu hatayı compile-time'da yakalar. Bu,
+  "güvenilirlik" önceliğimizle doğrudan çelişiyor — bir program type checker'ı
+  geçse de runtime'da tanımsız davranış üretebiliyor.
+
+  Nasıl savunulur? "Bu intended kısıtlamanın farkındayız. Düzeltmek için
+  checkBlock'un non-void fonksiyonlarda her path'ın ReturnStmt ile kapandığını
+  analiz etmesi (control flow analysis) gerekir — scope dışı tutuldu."
+
+  ---
+  2. YÜKSEK — Coercion Tutarsızlığı
+
+  var a: int   = 5
+  var b: float = 1.5
+  var sum:  float = a + b    // OK — coercion çalışıyor
+  var cmp:  bool  = a > b    // OK — checker geçiriyor (isNumeric kontrolü)
+  var eq:   bool  = a == b   // HATA — "cannot compare int with float"
+
+  +, -, >, < operatörleri int vs float karışımını kabul ediyor ama == ve !=
+  direkt left != right (tip eşitliği) kullandığı için reddediyor. Checker'ın iki
+   farklı mantığı var ve bunlar tutarsız.
+
+  Nasıl savunulur? "== için coercion kasıtlı çıkarıldı — task
+  karşılaştırmalarında yanlışlıkla int/float karışımını eşit kabul etmemek için
+  konservative davrandık" denilebilir ama bu çok savunulabilir bir pozisyon
+  değil.
+
+  Gerçek düzeltme: EQ/NEQ case'i de typesCompatible kullanmalı:
+  case token.EQ, token.NEQ:
+      if !typesCompatible(left, right) && !typesCompatible(right, left) {
+          return nil, fmt.Errorf(...)
+      }
+      return TBool, nil
+
+  ---
+  3. ORTA — var x: void Geçerli
+
+  task build { timeout: 10 retries: 0 parallel: false }
+  fun notify() -> void { run build }
+  var x: void = notify()   // checker geçiriyor, çalışıyor
+  print(x)                 // çıktı: <nil>
+
+  void bir değer tipi değil, "değer yok" işaretidir. Ama typeFromLexeme("void")
+  TVoid döndürdüğü için var x: void grammar'da ve checker'da geçerli.
+  Java/C++'da void x derleme hatası.
+
+  Nasıl savunulur? "VarDecl checkStmt'inde if _, ok := declared.(VoidType); ok {
+   return error } eklenerek kolayca kapatılır — kasıtlı değil, eksiklik."
+
+  ---
+  4. ORTA — on_failure Hiç Tetiklenmiyor
+
+  pipeline ci {
+      stage build
+      stage test
+      on_failure { print(1) }   // asla çalışmıyor
+  }
+  run ci
+  // çıktı: [run] build, [run] test — print(1) yok
+
+  Checker on_failure bloğunu type check ediyor ama interpreter'da RunStmt
+  pipeline'ı sadece stage'leri iterate ediyor, task'lar gerçek process
+  başlatmadığı için "failure" simüle edilemiyor. Tasarım dokümanı on_failure'ı 
+  semantik bir özellik olarak tanımlıyor ama runtime'da dead code.
+
+  Nasıl savunulur? "Task simülasyonu scope dışında tutuldu. on_failure yapısal
+  olarak doğru tanımlanmış ve type checked; tetiklenme semantiği (hangi
+  koşulda?) uygulama scope'u dışında."
+
+  ---
+  5. DÜŞÜK — void == void Geçerli
+
+  var eq: bool = notify() == notify()   // checker OK, iki kez çalışır
+
+  EQ case'i left == right (her ikisi de TVoid) → hata yok, TBool döner. Semantik
+   anlamsız ama crash yok.
+
+  ---
+  Savunma Stratejisi
+
+  ┌──────────────┬──────────────────────────────────────────────────────────┐
+  │ Zayıf Nokta  │                      Sorarsa Söyle                       │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Exhaustive   │ "Control flow analysis scope dışı tutuldu. Bilinen       │
+  │ return       │ eksiklik, fix için her branch'in return ile kapandığını  │
+  │              │ analiz eden bir pass gerekir."                           │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ EQ/NEQ       │ "Consistency gap var. typesCompatible kullanılmalıydı,   │
+  │ coercion     │ == için strict tutmak istedik ama sınır yanlış çizildi." │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ var x: void  │ "VarDecl'de void guard eksik — kolayca kapatılır, gözden │
+  │              │  kaçmış."                                                │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ on_failure   │ "Task simülasyonu scope dışı. Feature bildirimsel olarak │
+  │              │  doğru, semantik tetikleyici yok."                       │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ void == void │ "EQ operatörü void için özel case gerektiriyor,          │
+  │              │ eklenmemiş."                                             │
+  └──────────────┴──────────────────────────────────────────────────────────┘
+
+  Proaktif öneri: Sınav öncesi en azından #2'yi (EQ/NEQ coercion) kodu
+  düzelterek kapatmak mantıklı — bir satır değişiklik, net bir tutarsızlığı
+  kaldırıyor. #3'ü de (var x: void) iki satırla kapatabilirsiniz. Bunlar
+  "bilmeden yaptık" değil "düzeltilebilir" konumuna geçer.
+
+  Düzeltmemi ister misin?
+
+❯ <ide_selection>The user selected the lines 221 to 250 from /Users/omerkoc/Gol 
+  andProjects/mini-programming-language/internal/eval/eval.go:                  
+  func (interp *Interpreter) evalCall(n *ast.CallExpr, env *Env) (interface{},  
+  error) {                                                                      
+        if n.Name.Lexeme == "print" {                                           
+                val, err := interp.evalExpr(n.Args[0], env)                     
+                if err != nil {                                                 
+                        return nil, err                                         
+                }                                                               
+                fmt.Println(val)                                                
+                return nil, nil                                                 
+        }                                                                       
+        fn, ok := interp.funs[n.Name.Lexeme]                                    
+        if !ok {                                                                
+                return nil, fmt.Errorf("line %d: undeclared function %q", n.Name
+  n.Name.Lexeme)                                                                
+        }                                                                       
+        // Static scoping: close over global env, not caller's env              
+        callEnv := NewEnv(interp.env)                                           
+        for i, param := range fn.Params {                                       
+                val, err := interp.evalExpr(n.Args[i], env)                     
+                if err != nil {                                                 
+                        return nil, err                                         
+                }                                                               
+                callEnv.Set(param.Name.Lexeme, val)                             
+        }                                                                       
+        ret, err := interp.evalBlock(fn.Body, callEnv)                          
+        if err != nil {                                                         
+                return nil, err                                                 
+        }                                                                       
+        if sig, ok := ret.(*returnSignal); ok {                                 
+                return sig.value, nil                                           
+        }                                                                       
+                                                                                
+                                                                                
+  This may or may not be related to the current task.</ide_selection>           
+
+❯ düzeltilmesi gerekenkeri düzeltelim savunmaya çalışmayalım                    
+⏺ 3 düzeltme yapacağız: EQ/NEQ tutarsızlığı, var x: void, ve exhaustive return
+  check. Önce mevcut dosyaları okuyayım.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Şimdi 3 düzeltmeyi uygulayalım:
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 9 lines
+       98      }
+       99      c.returnType = prev
+      100      c.pop()
+      101 +    if _, isVoid := retType.(VoidType); !isVoid {             
+      102 +      if !blockAlwaysReturns(n.Body) {                        
+      103 +        return fmt.Errorf("line %d: function %q does not retur
+          +n on all paths",                                              
+      104 +          n.Name.Line, n.Name.Lexeme)                         
+      105 +      }                                                       
+      106 +    }                                                         
+      107      return nil
+      108    case *ast.VarDecl:
+      109      declared, err := typeFromLexeme(n.Type.Lexeme)
+      110      if err != nil {
+      111        return fmt.Errorf("line %d: %v", n.Type.Line, err)
+      112      }
+      113 +    if _, ok := declared.(VoidType); ok {                     
+      114 +      return fmt.Errorf("line %d: cannot declare variable of t
+          +ype void", n.Name.Line)                                       
+      115 +    }                                                         
+      116      actual, err := c.checkExpr(n.Value)
+      117      if err != nil {
+      118        return err
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 19 lines
+      356    return nil, fmt.Errorf("unknown unary op %q", n.Op.Lexeme)
+      357  }
+      358  
+      359 +func blockAlwaysReturns(b *ast.Block) bool {                  
+      360 +  for _, s := range b.Stmts {                                 
+      361 +    if stmtAlwaysReturns(s) {                                 
+      362 +      return true                                             
+      363 +    }                                                         
+      364 +  }                                                           
+      365 +  return false                                                
+      366 +}                                                             
+      367 +                                                              
+      368 +func stmtAlwaysReturns(s ast.Stmt) bool {                     
+      369 +  switch n := s.(type) {                                      
+      370 +  case *ast.ReturnStmt:                                       
+      371 +    return true                                               
+      372 +  case *ast.IfStmt:                                           
+      373 +    return n.Else != nil && blockAlwaysReturns(n.Then) && bloc
+          +kAlwaysReturns(n.Else)                                        
+      374 +  }                                                           
+      375 +  return false                                                
+      376 +}                                                             
+      377 +                                                              
+      378  func isNumeric(t Type) bool {
+      379    switch t.(type) {
+      380    case IntType, FloatType:
+
+⏺ Şimdi EQ/NEQ düzeltmesini de yapalım:
+
+⏺ Update(internal/checker/checker.go)
+  ⎿  Added 7 lines, removed 1 line
+      311      }
+      312      return TBool, nil
+      313    case token.EQ, token.NEQ:
+      314 -    if left != right {                                        
+      314 +    if _, ok := left.(VoidType); ok {                         
+      315 +      return nil, fmt.Errorf("line %d: void is not comparable"
+          +, n.Op.Line)                                                  
+      316 +    }                                                         
+      317 +    if _, ok := right.(VoidType); ok {                        
+      318 +      return nil, fmt.Errorf("line %d: void is not comparable"
+          +, n.Op.Line)                                                  
+      319 +    }                                                         
+      320 +    if !typesCompatible(left, right) && !typesCompatible(right
+          +, left) {                                                     
+      321        return nil, fmt.Errorf("line %d: cannot compare %s with 
+           %s",
+      322          n.Op.Line, left.typeString(), right.typeString())
+      323      }
+
+⏺ Bash(go test ./...)
+  ⎿  ?          workflowscript/cmd/wsc  [no test files]
+     ?          workflowscript/internal/ast     [no test files]
+     ?          workflowscript/internal/token   [no test files]
+     … +4 lines (ctrl+o to expand)
+
+⏺ Testler geçiyor. 3 düzeltmeyi doğrulayalım:
+
+⏺ Bash(echo "=== 1. Exhaustive return ===" && \
+      go run ./cmd/wsc /tmp/test_gaps.ws 2>&1 || true…)
+  ⎿  === 1. Exhaustive return ===
+     type error: line 2: function "max" does not return on all paths
+     exit status 1
+     … +7 lines (ctrl+o to expand)
+
+⏺ 4'ü de yakalandı. Test 2 (EQ/NEQ) artık int == float'a da izin veriyor — a + b
+   gibi tutarlı.
+
+  3 değişiklik:
+
+  - blockAlwaysReturns / stmtAlwaysReturns — non-void fonksiyonlarda her path'in
+   return'la kapandığını analiz eder; if/else her iki branch'i de return
+  ediyorsa geçerli, else yoksa veya while'sa reddeder
+  - EQ/NEQ — artık typesCompatible kullanıyor, int == float geçerli, void == 
+  void hata
+  - VarDecl — void tip bildirimi compile-time'da reddediliyor
+
+❯ bana bir md doc yaz burada yaptığımız değişikleri göstersin. Sebepleri de     
+  olsun. İlgli kod blokları da olsun                                            
+
+⏺ Write(CHANGES_PART2.md)
+  ⎿  Wrote 194 lines to CHANGES_PART2.md
+      1 # Part 2 — Type Checker Düzeltmeleri
+      2 
+      3 Bu belgede Part 2 implementasyonu sırasında tespit edilen ve düze
+        ltilen üç tip sistemi açığı açıklanmaktadır.
+      4 
+      5 ---
+      6 
+      7 ## 1. Exhaustive Return Check
+      8 
+      9 ### Problem
+     … +228 lines (ctrl+o to expand)
+
+⏺ CHANGES_PART2.md oluşturuldu.
+
+  Her bölüm şu yapıda: önce programın neden yanlış davrandığını gösteren kod
+  örneği, ardından eski kodun neden bunu atlattığının açıklaması, sonra
+  düzeltilmiş Go kodu, en sonda düzeltme sonrası davranış tablosu. Sonda da 3
+  açığı tek satırda özetleyen bir tablo var.
+
+❯ <ide_opened_file>The user opened the file                                     
+  /Users/omerkoc/GolandProjects/mini-programming-language/EXAM_DEFENSE.md in    
+  the IDE. This may or may not be related to the current                        
+  task.</ide_opened_file>                                                       
+
+❯ bunula exam defense çelişiyor mu?                                             
+
+⏺ EXAM_DEFENSE.md'yi okuyayım — düzeltmelerden önce yazıldığı için nelerin
+  çakıştığını bulalım.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Evet, 3 yerde çelişiyor. Hepsini listeleyelim:
+
+  1. Section 4.4 — FunDecl kodu eksik/yanıltıcı
+
+  EXAM_DEFENSE.md'deki snippet şunu gösteriyor:
+  case *ast.FunDecl:
+      c.returnType = retType
+      c.checkBlock(n.Body)
+      c.returnType = prev
+  Ama artık checkBlock'tan sonra blockAlwaysReturns çağrısı da var. Sınav
+  sorularına göre kod üzerinden sorulursa bu eksik görünür.
+
+  2. Section 4.4 metin — non-void kısıtlaması anlatılmıyor
+
+  "Void dönüş özel case" paragrafı sadece void { return 42 } hatasından
+  bahsediyor. fun f() -> int { if c { return 1 } } artık hata verdiği
+  anlatılmıyor.
+
+  3. Test tablosu — 3 yeni davranışın testi yok
+
+  ┌──────────────────────────────┬─────────────────────────────┐
+  │          Eksik test          │        Ne test eder         │
+  ├──────────────────────────────┼─────────────────────────────┤
+  │ TestChecker_ExhaustiveReturn │ if olmadan return → hata    │
+  ├──────────────────────────────┼─────────────────────────────┤
+  │ TestChecker_VoidVariable     │ var x: void → hata          │
+  ├──────────────────────────────┼─────────────────────────────┤
+  │ TestChecker_VoidComparison   │ notify() == notify() → hata │
+  └──────────────────────────────┴─────────────────────────────┘
+
+  Ve bu testler checker_test.go'da da gerçekten yok — sadece doc eksikliği
+  değil, test kodu da eksik.
+
+  ---
+  EXAM_DEFENSE.md'yi güncelleyeyim ve checker_test.go'ya 3 testi de ekleyeyim
+  mi?
+
+❯ tamam                                                                         
+
+⏺ İki dosyayı paralel güncelleyeyim.
+
+  Read 2 files (ctrl+o to expand)
+
+⏺ Update(internal/checker/checker_test.go)
+  ⎿  Added 38 lines
+      114      t.Errorf("print should be recognized as a built-in: %v", e
+           rr)
+      115    }
+      116  }
+      117 +                                                              
+      118 +func TestChecker_ExhaustiveReturn(t *testing.T) {             
+      119 +  // if without else — false branch falls off the end         
+      120 +  err := check(t, `fun f(x: int) -> int { if x > 0 { return x 
+          +} }`)                                                         
+      121 +  if err == nil {                                             
+      122 +    t.Error("expected error: function does not return on all p
+          +aths")                                                        
+      123 +  }                                                           
+      124 +}                                                             
+      125 +                                                              
+      126 +func TestChecker_ExhaustiveReturnIfElse(t *testing.T) {       
+      127 +  // if + else, both branches return — must be accepted       
+      128 +  src := `fun f(x: int) -> int { if x > 0 { return x } else { 
+          +return 0 } }`                                                 
+      129 +  if err := check(t, src); err != nil {                       
+      130 +    t.Errorf("if/else with both branches returning should be v
+          +alid: %v", err)                                               
+      131 +  }                                                           
+      132 +}                                                             
+      133 +                                                              
+      134 +func TestChecker_VoidVariable(t *testing.T) {                 
+      135 +  src := `                                                    
+      136 +task build { timeout: 10 retries: 0 parallel: false }         
+      137 +fun notify() -> void { run build }                            
+      138 +var x: void = notify()                                        
+      139 +`                                                             
+      140 +  if err := check(t, src); err == nil {                       
+      141 +    t.Error("expected error: cannot declare variable of type v
+          +oid")                                                         
+      142 +  }                                                           
+      143 +}                                                             
+      144 +                                                              
+      145 +func TestChecker_VoidComparison(t *testing.T) {               
+      146 +  src := `                                                    
+      147 +task build { timeout: 10 retries: 0 parallel: false }         
+      148 +fun notify() -> void { run build }                            
+      149 +var eq: bool = notify() == notify()                           
+      150 +`                                                             
+      151 +  if err := check(t, src); err == nil {                       
+      152 +    t.Error("expected error: void is not comparable")         
+      153 +  }                                                           
+      154 +}                                                             
+
+⏺ Update(EXAM_DEFENSE.md)
+  ⎿  Added 22 lines, removed 6 lines
+      77  **Sıklıkla sorulan:** "Neden float → int yok?"  
+      78  Cevap: Truncation sessiz veri kaybıdır. WorkflowScript'in güven
+          ilirlik önceliğiyle çelişir; bu tip dönüşümü explicit olmak zor
+          undadır.
+      79  
+      80 -### 4.4 Return Type Kontrolü                                   
+      80 +### 4.4 Return Type Kontrolü ve Exhaustive Return              
+      81  
+      82  ```go
+      83  case *ast.FunDecl:
+      84 -    c.returnType = retType       // fonksiyon girerken sakla   
+      85 -    c.checkBlock(n.Body)                                       
+      86 -    c.returnType = prev          // fonksiyon çıkışta geri yükl
+         -e                                                              
+      84 +    c.returnType = retType                                     
+      85 +    if err := c.checkBlock(n.Body); err != nil { ... }         
+      86 +    c.returnType = prev                                        
+      87 +    // non-void fonksiyonlar her yolda return etmek zorunda    
+      88 +    if _, isVoid := retType.(VoidType); !isVoid {              
+      89 +        if !blockAlwaysReturns(n.Body) {                       
+      90 +            return fmt.Errorf("line %d: function %q does not re
+         +turn on all paths", ...)                                       
+      91 +        }                                                      
+      92 +    }                                                          
+      93  
+      94  case *ast.ReturnStmt:
+      95      if !typesCompatible(actual, c.returnType) {
+     ...
+       97      }
+       98  ```
+       99  
+       94 -`Checker.returnType` alanı nested fonksiyon desteği için her `
+          -FunDecl`'e girerken saklanıp çıkarken restore edilir.         
+      100 +`Checker.returnType` alanı her `FunDecl`'e girerken saklanıp ç
+          +ıkarken restore edilir — nested fonksiyon desteği için.       
+      101  
+       96 -**Void dönüş özel case:** `fun f() -> void { return 42 }` hata
+          - verir çünkü `typesCompatible(int, void)` false döner. `fun f(
+          -) -> void { run build }` ise geçerlidir — `run` statement, değ
+          -er döndürmez.                                                 
+      102 +`blockAlwaysReturns` / `stmtAlwaysReturns` AST üzerinde yürür.
+          + `ReturnStmt` garantili sayılır; `IfStmt` yalnızca hem `then` 
+          +hem `else` branch'i varsa ve her ikisi de return ediyorsa gara
+          +ntili kabul edilir. `while` hiçbir zaman garantili değildir — 
+          +koşulun her zaman true olduğunu statik olarak saptamak constan
+          +t folding gerektirir.                                         
+      103  
+      104 +| Fonksiyon | Sonuç |                                         
+      105 +|-----------|-------|                                         
+      106 +| `fun f() -> int { return 1 }` | geçerli |                   
+      107 +| `fun f(x:int) -> int { if x>0 { return x } else { return 0 }
+          + }` | geçerli |                                               
+      108 +| `fun f(x:int) -> int { if x>0 { return x } }` | **hata** — e
+          +lse yok |                                                     
+      109 +| `fun f() -> int { while true { return 1 } }` | **hata** — wh
+          +ile garantisiz |                                              
+      110 +| `fun f() -> void { run build }` | geçerli — void fonksiyonla
+          +r muaf |                                                      
+      111 +                                                              
+      112 +**Void dönüş özel case:** `fun f() -> void { return 42 }` hata
+          + verir çünkü `typesCompatible(int, void)` false döner.        
+      113 +                                                              
+      114  ### 4.5 RunStmt Static Check
+      115  
+      116  ```go
+
+⏺ Şimdi EQ/NEQ ve void variable bölümlerini güncelleyeyim:
+
+⏺ Update(EXAM_DEFENSE.md)  ⎿  Added 21 lines
+       77  **Sıklıkla sorulan:** "Neden float → int yok?"  
+       78  Cevap: Truncation sessiz veri kaybıdır. WorkflowScript'in güve
+           nilirlik önceliğiyle çelişir; bu tip dönüşümü explicit olmak z
+           orundadır.
+       79  
+       80 +`typesCompatible` aritmetik operatörlerde (`+`, `-`, `*`, `/`)
+          +, sıralama operatörlerinde (`<`, `<=`, `>`, `>=`) **ve** eşitl
+          +ik operatörlerinde (`==`, `!=`) tutarlı biçimde uygulanır. `in
+          +t == float` geçerlidir; `bool == int` geçersizdir. `void` hiçb
+          +ir operatörle karşılaştırılamaz:                              
+       81 +                                                              
+       82 +```go                                                         
+       83 +case token.EQ, token.NEQ:                                     
+       84 +    if _, ok := left.(VoidType); ok {                         
+       85 +        return nil, fmt.Errorf("line %d: void is not comparabl
+          +e", n.Op.Line)                                                
+       86 +    }                                                         
+       87 +    if !typesCompatible(left, right) && !typesCompatible(right
+          +, left) {                                                     
+       88 +        return nil, fmt.Errorf("line %d: cannot compare %s wit
+          +h %s", ...)                                                   
+       89 +    }                                                         
+       90 +    return TBool, nil                                         
+       91 +```                                                           
+       92 +                                                              
+       93 +**`var x: void` yasaktır.** `void` bir dönüş tipi belirtecidir
+          +, değer tipi değildir. `VarDecl` kontrolünde declared tip `Voi
+          +dType` ise compile-time hata üretilir:                        
+       94 +                                                              
+       95 +```go                                                         
+       96 +if _, ok := declared.(VoidType); ok {                         
+       97 +    return fmt.Errorf("line %d: cannot declare variable of typ
+          +e void", n.Name.Line)                                         
+       98 +}                                                             
+       99 +```                                                           
+      100 +                                                              
+      101  ### 4.4 Return Type Kontrolü ve Exhaustive Return
+      102  
+      103  ```go
+
+⏺ Test tablosunu güncelleyeyim:
+
+⏺ Update(EXAM_DEFENSE.md)
+  ⎿  Added 4 lines
+      326  | `TestChecker_VoidFunctionReturnValue` | `-> void { return 42
+            }` → hata |
+      327  | `TestChecker_RunUndefinedTarget` | `run ghost` compile-time 
+           → hata |
+      328  | `TestChecker_PrintBuiltin` | `print(42)` → OK |
+      329 +| `TestChecker_ExhaustiveReturn` | `if` without else in non-vo
+          +id fun → hata |                                               
+      330 +| `TestChecker_ExhaustiveReturnIfElse` | `if/else` her iki bra
+          +nch return → OK |                                             
+      331 +| `TestChecker_VoidVariable` | `var x: void` → hata |         
+      332 +| `TestChecker_VoidComparison` | `notify() == notify()` → hata
+          + |                                                            
+      333  
+      334  ### Interpreter Testleri (`eval_test.go`)
+      335  
+
+⏺ Bash(go test ./...)
+  ⎿  ?          workflowscript/cmd/wsc  [no test files]
+     ?          workflowscript/internal/ast     [no test files]
+     ?          workflowscript/internal/token   [no test files]
+     … +4 lines (ctrl+o to expand)
+
+⏺ Tüm testler geçiyor. Yapılanlar:
+
+  checker_test.go — 4 yeni test eklendi:
+  - TestChecker_ExhaustiveReturn — else'siz if hata verir
+  - TestChecker_ExhaustiveReturnIfElse — if+else her iki branch return → geçerli
+  - TestChecker_VoidVariable — var x: void hata verir
+  - TestChecker_VoidComparison — void == void hata verir
+
+  EXAM_DEFENSE.md — 3 bölüm güncellendi:
+  - Section 4.3'e EQ/NEQ tutarlılığı ve var x: void yasağı eklendi (kod
+  örnekleriyle)
+  - Section 4.4 blockAlwaysReturns çağrısını gösteren tam FunDecl kodu ve
+  davranış tablosuyla güncellendi
+  - Test tablosuna 4 yeni satır eklendi

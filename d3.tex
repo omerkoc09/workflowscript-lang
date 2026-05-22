@@ -1,0 +1,411 @@
+\documentclass[10pt,a4paper]{article}
+
+% ---------- packages ----------
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage{amssymb}
+
+% ---------- page style ----------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{CSE341 — D3}
+\lhead{WorkflowScript}
+\rfoot{\thepage}
+
+% ---------- colours ----------
+\definecolor{kw}{RGB}{0,0,180}
+\definecolor{cm}{RGB}{80,130,80}
+\definecolor{str}{RGB}{163,21,21}
+\definecolor{bg}{RGB}{248,248,248}
+\definecolor{err}{RGB}{180,0,0}
+\definecolor{out}{RGB}{30,100,30}
+\definecolor{frame}{RGB}{200,200,200}
+
+% ---------- WorkflowScript listing style ----------
+\lstdefinelanguage{WorkflowScript}{
+  morekeywords={task,pipeline,stage,on_failure,fun,var,run,return,
+                if,else,while,int,float,bool,void,
+                timeout,retries,parallel,true,false},
+  sensitive=true,
+  morecomment=[l]{//},
+  literate={->}{{$\to$}}1
+           {<=}{{$\leq$}}1
+           {>=}{{$\geq$}}1
+           {!=}{{$\neq$}}1
+           {==}{{$=$}}1
+}
+
+\lstset{
+  language=WorkflowScript,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  commentstyle=\color{cm}\itshape,
+  backgroundcolor=\color{bg},
+  frame=single,
+  rulecolor=\color{frame},
+  framesep=4pt,
+  xleftmargin=12pt,
+  xrightmargin=4pt,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b,
+}
+
+\lstdefinestyle{error}{
+  language={},
+  basicstyle=\ttfamily\small\color{err},
+  backgroundcolor=\color{bg},
+  frame=single,
+  rulecolor=\color{frame},
+  framesep=4pt,
+  xleftmargin=12pt,
+  numbers=none,
+  breaklines=true,
+}
+
+\lstdefinestyle{output}{
+  language={},
+  basicstyle=\ttfamily\small\color{out},
+  backgroundcolor=\color{bg},
+  frame=single,
+  rulecolor=\color{frame},
+  framesep=4pt,
+  xleftmargin=12pt,
+  numbers=none,
+  breaklines=true,
+}
+
+% =========================================================
+\begin{document}
+% =========================================================
+
+\thispagestyle{fancy}
+
+\bigskip
+\noindent
+All programs were tested with the \texttt{wsc} CLI\@.
+Valid programs are executed with \texttt{wsc <file>}; interpreter output is written to
+stdout.  Programs with type errors are rejected by the type checker before any execution
+begins.  Malformed programs are rejected at parse time with a diagnostic message on stderr.
+
+% =========================================================
+\section{Valid Programs --- Execution with Outputs}
+\label{sec:valid}
+% =========================================================
+
+The table below summarises which language features each example exercises.
+
+\begin{center}
+\small
+\begin{tabular}{lccc}
+\toprule
+Feature & Ex.~1 & Ex.~2 & Ex.~3 \\
+\midrule
+\texttt{task} declaration (structured type)  & \checkmark & \checkmark & \checkmark \\
+Function definition (\texttt{fun})           & \checkmark & \checkmark & \checkmark \\
+Function call                                & \checkmark & \checkmark & \checkmark \\
+Task field access (\texttt{t.field})         & \checkmark & \checkmark & \checkmark \\
+\texttt{if} statement                        & \checkmark & \checkmark & \checkmark \\
+\texttt{else} branch                         & \checkmark &            &            \\
+\texttt{while} loop                          &            &            & \checkmark \\
+\texttt{pipeline} + \texttt{stage}           &            &            & \checkmark \\
+\texttt{on\_failure}                         &            &            & \checkmark \\
+\texttt{run} statement                       & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ---------------------------------------------------------
+\subsection{Program 1 --- Conditional Task Dispatch (\texttt{01\_basic.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={01\_basic.ws --- conditional dispatch based on task cost}]
+// Conditional dispatch: choose the cheaper task based on computed cost
+task fast {
+    timeout:  20
+    retries:  0
+    parallel: true
+}
+
+task thorough {
+    timeout:  90
+    retries:  3
+    parallel: false
+}
+
+fun total_cost(t: task) -> int {
+    return t.timeout * (t.retries + 1)
+}
+
+var fast_cost: int     = total_cost(fast)
+var thorough_cost: int = total_cost(thorough)
+
+if fast_cost < thorough_cost {
+    run fast
+} else {
+    run thorough
+}
+\end{lstlisting}
+
+\noindent\textbf{Actual output:}
+\begin{lstlisting}[style=output]
+[run] fast
+\end{lstlisting}
+
+\noindent\textbf{Discussion.}
+This program demonstrates user-defined functions that accept a \texttt{task} argument and
+access its fields (\texttt{t.timeout}, \texttt{t.retries}) to compute a derived integer
+value.
+The two tasks, \texttt{fast} and \texttt{thorough}, are passed to \texttt{total\_cost},
+which returns $20 \times 1 = 20$ and $90 \times 4 = 360$ respectively.
+Because \texttt{fast\_cost} $<$ \texttt{thorough\_cost} is true, the \texttt{if} branch
+executes and \texttt{run fast} is triggered, printing \texttt{[run] fast}.
+The program exercises WorkflowScript's structured type (\texttt{task}), field access via
+dot notation, function calls with task parameters, arithmetic expressions, and the
+\texttt{if-else} control structure in a single coherent workflow scenario.
+
+% ---------------------------------------------------------
+\subsection{Program 2 --- Function Definitions and Task Field Access (\texttt{02\_functions.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={02\_functions.ws --- function definitions and task field access}]
+// User-defined functions and task field access
+task deploy { timeout: 120 retries: 1 parallel: false }
+
+fun max_time(t: int, r: int) -> int {
+    return t * (r + 1)
+}
+
+fun is_long(t: task) -> bool {
+    return t.timeout > 60
+}
+
+var m: int    = max_time(120, 1)
+var slow: bool = is_long(deploy)
+
+if slow {
+    run deploy
+}
+\end{lstlisting}
+
+\noindent\textbf{Actual output:}
+\begin{lstlisting}[style=output]
+[run] deploy
+\end{lstlisting}
+
+\noindent\textbf{Discussion.}
+This program showcases two function definitions with different return types
+(\texttt{int} and \texttt{bool}) to demonstrate that WorkflowScript's type system
+correctly tracks return types across function calls.
+\texttt{max\_time} receives two \texttt{int} arguments and returns their product,
+computing the maximum possible wall-clock duration for a task with retries.
+\texttt{is\_long} accepts a \texttt{task} argument and returns a boolean by comparing
+\texttt{t.timeout > 60}; since \texttt{deploy.timeout} is 120, it returns \texttt{true}.
+The \texttt{if} body therefore executes and \texttt{[run] deploy} is printed, illustrating
+how functions that access structured type fields and produce boolean results can drive
+control flow.
+
+% ---------------------------------------------------------
+\subsection{Program 3 --- Pipeline Execution with While Loop (\texttt{03\_pipeline.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={03\_pipeline.ws --- pipeline with on\_failure, while loop, and conditional run}]
+// Full pipeline with on_failure, functions, while loop
+task build  { timeout: 30  retries: 0 parallel: false }
+task test   { timeout: 60  retries: 2 parallel: true  }
+task deploy { timeout: 120 retries: 1 parallel: false }
+
+pipeline release {
+    stage build
+    stage test
+    stage deploy
+    on_failure { run build }
+}
+
+fun should_run(limit: int) -> bool {
+    return limit > 0
+}
+
+var attempt: int = 0
+var limit: int   = 3
+
+while attempt < limit {
+    attempt = attempt + 1
+}
+
+if should_run(limit) {
+    run release
+}
+\end{lstlisting}
+
+\noindent\textbf{Actual output:}
+\begin{lstlisting}[style=output]
+[run] build
+[run] test
+[run] deploy
+\end{lstlisting}
+
+\noindent\textbf{Discussion.}
+This program is the most comprehensive of the three: it declares three tasks, a named
+pipeline with three ordered stages and an \texttt{on\_failure} handler, a \texttt{while}
+loop that counts from 0 to 3, and a guard function that decides whether the pipeline
+should run.
+The \texttt{while} loop exits when \texttt{attempt == limit == 3}; then
+\texttt{should\_run(3)} returns \texttt{true}, so \texttt{run release} is executed.
+Running a pipeline sequentially prints each stage name in declaration order ---
+\texttt{[run] build}, \texttt{[run] test}, \texttt{[run] deploy} --- which matches
+the \textsc{[Run-Pipeline]} semantic rule in the design specification.
+The \texttt{on\_failure} block and \texttt{parallel: true} field on \texttt{test} are
+parsed and type-checked but are not triggered during this simulated execution,
+demonstrating their presence as first-class language constructs even without a real
+process scheduler.
+
+% =========================================================
+\section{Type Checker --- Type Error Caught Before Execution}
+\label{sec:typeerror}
+% =========================================================
+
+% ---------------------------------------------------------
+\subsection{Type Error --- Bool Field Used in Arithmetic (\texttt{06\_type\_error.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={06\_type\_error.ws --- bool task field in arithmetic expression}]
+// Type error: mixing bool task field in arithmetic expression.
+// deploy.parallel is of type bool; the + operator requires numeric operands.
+// The type checker catches this before any execution begins.
+task deploy { timeout: 120  retries: 1  parallel: false }
+
+var effective_cost: int = deploy.timeout + deploy.parallel
+\end{lstlisting}
+
+\noindent\textbf{Type error message:}
+\begin{lstlisting}[style=error]
+type error: line 6: + requires numeric operands
+\end{lstlisting}
+
+\noindent\textbf{Discussion.}
+This program contains a common domain mistake: a programmer attempts to include the
+\texttt{parallel} flag in a cost formula alongside \texttt{timeout}.
+In WorkflowScript, \texttt{deploy.parallel} has type \texttt{bool}, while
+\texttt{deploy.timeout} has type \texttt{int}; the \texttt{+} operator requires both
+operands to be numeric (\texttt{int} or \texttt{float}), so applying it to a
+\texttt{bool} operand is forbidden by the type rules in \S4.5.2 of the design
+specification.
+The type checker detects this before any execution begins and halts with a precise error
+on line~6.
+No output is produced because interpretation never starts --- this demonstrates
+WorkflowScript's \emph{fail-fast} design principle: type safety is enforced at compile
+time to prevent silent failures during long-running pipeline jobs.
+
+% =========================================================
+\section{Malformed Programs --- Parser Error Messages}
+\label{sec:invalid}
+% =========================================================
+
+Each subsection gives the source file, the exact error string printed to \texttt{stderr}
+by \texttt{wsc}, and a brief explanation of which grammar rule the input violates.
+
+% ---------------------------------------------------------
+\subsection{Error 1 --- Missing Closing Brace (\texttt{01\_missing\_brace.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={01\_missing\_brace.ws}]
+task build { timeout: 30 retries: 0 parallel: false
+\end{lstlisting}
+
+\begin{lstlisting}[style=error]
+line 2: expected RBRACE, got ""
+\end{lstlisting}
+
+\noindent\textbf{Explanation.}
+The grammar rule for \texttt{<task\_decl>} requires a closing \texttt{\}} after the
+three field declarations.  The source ends immediately after the \texttt{false} token,
+so the parser reaches end-of-file while still expecting \texttt{RBRACE}.
+The ``got \texttt{""}'' indicates the EOF token, which has an empty lexeme.
+
+% ---------------------------------------------------------
+\subsection{Error 2 --- Wrong Task Field Order (\texttt{02\_bad\_field\_order.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={02\_bad\_field\_order.ws}]
+task build { retries: 0 timeout: 30 parallel: false }
+\end{lstlisting}
+
+\begin{lstlisting}[style=error]
+line 1: expected KW_TIMEOUT, got "retries"
+\end{lstlisting}
+
+\noindent\textbf{Explanation.}
+The grammar mandates a fixed field order: \texttt{timeout}, then \texttt{retries},
+then \texttt{parallel}.  Swapping \texttt{retries} and \texttt{timeout} violates this
+ordering; the parser immediately reports that it expected the keyword \texttt{timeout}
+but found \texttt{retries} instead.
+
+% ---------------------------------------------------------
+\subsection{Error 3 --- Empty Pipeline (\texttt{03\_empty\_pipeline.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={03\_empty\_pipeline.ws}]
+pipeline ci { }
+\end{lstlisting}
+
+\begin{lstlisting}[style=error]
+line 1: pipeline must have at least one stage
+\end{lstlisting}
+
+\noindent\textbf{Explanation.}
+The grammar rule \texttt{<pipeline\_body>~::=~<stage\_stmt>~\{~<stage\_stmt>~\}~[~<on\_failure>~]}
+requires at least one \texttt{stage} statement.  An empty body violates this constraint.
+The parser checks \texttt{len(stages) == 0} after the stage-collection loop and emits a
+semantic parse error before the closing \texttt{\}} is consumed.
+
+% ---------------------------------------------------------
+\subsection{Error 4 --- Missing Arrow in Function Signature (\texttt{04\_missing\_arrow.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={04\_missing\_arrow.ws}]
+fun double(x: int) int { return x }
+\end{lstlisting}
+
+\begin{lstlisting}[style=error]
+line 1: expected ARROW, got "int"
+\end{lstlisting}
+
+\noindent\textbf{Explanation.}
+The grammar requires the \texttt{->} separator between the parameter list and the
+return type: \texttt{<fun\_decl>~::=~"fun"~IDENT~"("~\ldots~")"~"->"~<type>~<block>}.
+Omitting \texttt{->} causes the parser to see the return-type keyword \texttt{int}
+where it expects the \texttt{ARROW} token.
+
+% ---------------------------------------------------------
+\subsection{Error 5 --- Integer Literal for Boolean Field (\texttt{05\_bad\_parallel.ws})}
+% ---------------------------------------------------------
+
+\begin{lstlisting}[caption={05\_bad\_parallel.ws}]
+task build { timeout: 30 retries: 0 parallel: 1 }
+\end{lstlisting}
+
+\begin{lstlisting}[style=error]
+line 1: expected BOOL_LIT, got "1"
+\end{lstlisting}
+
+\noindent\textbf{Explanation.}
+The grammar specifies \texttt{"parallel"~":"~BOOL\_LIT}; only the tokens \texttt{true}
+and \texttt{false} satisfy \texttt{BOOL\_LIT}.  The integer literal \texttt{1} is
+lexed as \texttt{INT\_LIT}, which does not match the expected token type.
+This demonstrates that WorkflowScript does not perform implicit numeric-to-boolean
+coercion, even at parse time.
+
+% =========================================================
+\end{document}
+% =========================================================

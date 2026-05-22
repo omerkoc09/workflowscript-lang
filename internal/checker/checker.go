@@ -317,7 +317,7 @@ func (c *Checker) checkBinary(n *ast.BinaryExpr) (Type, error) {
 		if _, ok := right.(VoidType); ok {
 			return nil, fmt.Errorf("line %d: void is not comparable", n.Op.Line)
 		}
-		if !typesCompatible(left, right) && !typesCompatible(right, left) {
+		if left != right {
 			return nil, fmt.Errorf("line %d: cannot compare %s with %s",
 				n.Op.Line, left.typeString(), right.typeString())
 		}

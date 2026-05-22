@@ -1,0 +1,650 @@
+\documentclass[a4paper,10pt]{article}
+
+% ── Encoding & fonts ────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+
+% ── Layout ──────────────────────────────────────────────────────────────────
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{parskip}
+\setlength{\parindent}{0pt}
+
+% ── Colors & tables ─────────────────────────────────────────────────────────
+\usepackage[table]{xcolor}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+
+\definecolor{headerblue}{HTML}{334155}
+\definecolor{altrow}{HTML}{F1F5F9}
+\definecolor{accentblue}{HTML}{3B82F6}
+\definecolor{lightgray}{HTML}{E2E8F0}
+
+% ── Header / footer ─────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{gray}{CSE 341 --- AI Usage Journal (Part 1)}}
+\fancyhead[R]{\small\textcolor{gray}{WorkflowScript}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Section styling ─────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}
+  {\large\bfseries\color{headerblue}}
+  {}{0em}{}[\vspace{-0.3em}{\color{lightgray}\hrule}\vspace{0.5em}]
+
+% ── Hyperlinks ───────────────────────────────────────────────────────────────
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+
+\renewcommand{\arraystretch}{1.8}
+
+% ════════════════════════════════════════════════════════════════════════════
+\begin{document}
+\thispagestyle{empty}
+
+% ══ COVER PAGE ══════════════════════════════════════════════════════════════
+\vspace*{3cm}
+\begin{center}
+  {\LARGE\bfseries\color{headerblue} D4 --- AI Usage Journal --- Part 1}\\[0.6em]
+  {\large CSE 341 --- Concepts of Programming Languages}\\[0.3em]
+  {\large Gebze Technical University}\\[2.5em]
+
+  \renewcommand{\arraystretch}{1.5}
+  \begin{tabular}{r l}
+    \textbf{Language:}   & WorkflowScript \\
+    \textbf{Student:}    & {Ömer Faruk Koç} \\
+    \textbf{Student \#:} & {210104004061} \\
+    \textbf{Part:}       & 1 \quad  \\
+    \textbf{Entries:}    & 10 \quad \\
+    \textbf{Submitted:}  & 2026-05-08 \\
+  \end{tabular}
+  \renewcommand{\arraystretch}{1.8}
+
+
+\end{center}
+
+\newpage
+
+% ══ CONTENTS ════════════════════════════════════════════════════════════════
+\section{Journal Overview}
+
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{c l l l}
+  \toprule
+  \textbf{Entry} & \textbf{Date} & \textbf{Phase} & \textbf{Topic} \\
+  \midrule
+  1      & 2026-05-06 & Design         & DSL domain selection \\
+  2      & 2026-05-06 & Design         & Language--runtime independence \\
+  3      & 2026-05-06 & Design         & Domain reconsideration --- RuleScript to WorkflowScript \\
+  4      & 2026-05-06 & Design         & Core language design decisions (6 decisions) \\
+  5      & 2026-05-06 & Design/Grammar & EBNF grammar writing + Gemini critique evaluation \\
+  6      & 2026-05-07 & Design         & Lexical structure --- boolean literal classification \\
+  7      & 2026-05-07 & Design         & Names, binding, scope, lifetime \\
+  8      & 2026-05-08 & Testing        & TDD test suites (lexer, parser, checker, interpreter) \\
+  9     & 2026-05-07 & Writing        & Example programs + smoke testing \\
+  10 (E1) & 2026-05-08 & Design         & EBNF grammar generation --- Experiment E1 \\
+  \bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1.8}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\textwidth]{x.png} 
+    \caption{The timestamps and dates of AI conversations. (This does not violate the last 48-hour rule.)}
+    \label{fig:etiketim}
+\end{figure}
+
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 2
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 1 --- DSL Domain Selection}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 1 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-06 \\
+\hline
+\rowcolor{white}
+Phase           & Design \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6 \\
+\hline
+\rowcolor{white}
+Goal            & Choosing a suitable DSL domain for the project. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``backend alanıyla ilgileniyorum bu alandaki bir boşluğu dolduracak işleri kolaylaştıracak bir dsl olsun. Ayrıca golang de compiler için kütüphanelerin olduğunu biliyorum. Daha önce parser falan yazmıştım. Dil olarak go kullanmayı düşünüyorum o yüzden.'' \\
+\hline
+\rowcolor{white}
+Response (key part) & RuleScript domain proposal --- backend business rule engine concept \\
+\hline
+\rowcolor{altrow}
+Accepted        & RuleScript domain proposal accepted. \\
+\hline
+\rowcolor{white}
+Rejected / modified & VectorLang, RobotScript domain proposal --- its answer to the question ``why a new language for backend business rule engine'' is weaker \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & --- \\
+\hline
+\rowcolor{white}
+Reflection & \textit{AI analyzed why the domain was chosen as a DSL rather than a general scripting language when offering domain options.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 3
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 2 --- Language--Runtime Independence}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 2 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-06 \\
+\hline
+\rowcolor{white}
+Phase           & Design \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Verify whether RuleScript is tied to Go or can work independently. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``Rulescript sadece Go ile mi çalışabilir olmayacak değil mi? Bu DSL her dille çalışabiliyor olması lazım.'' \\
+\hline
+\rowcolor{white}
+Response  & The AI clarified that the interpreter being written in Go does not make the language itself Go-specific. It drew analogies: Lua (written in C, embeddable in Go, Java, Python, etc.), SQL (each database writes its own parser/runtime, the language standard is independent), Terraform HCL (written in Go, runs on AWS, Azure, GCP). The conclusion was: RuleScript as a language is independent. The Go implementation is one runtime. Any backend (Python, Java, Node.js) could have its own RuleScript interpreter. \\
+\hline
+\rowcolor{altrow}
+Accepted        & The language/runtime separation concept. This actually strengthens the domain justification --- RuleScript is not a Go-specific tool, it is a language that any backend could adopt. The Go interpreter is the reference implementation. \\
+\hline
+\rowcolor{white}
+Rejected / modified & Nothing rejected. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & None in this exchange. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{I didn't realize that SQL is actually a DSL . I used to think of it just as a database tool, but the AI clarified that since it focuses solely on managing relational data rather than being a general-purpose language. This helped me to better understand the architectural role of  DSL.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 4
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 3 --- Domain Reconsideration: RuleScript to WorkflowScript}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 3 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-06 \\
+\hline
+\rowcolor{white}
+Phase           & Design \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Reconsider domain choice --- RuleScript felt out of place next to the handout's example languages. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``tekrar düşündüm de Rulescript dokümanda verilen örneklere göre biraz soyut kalıyor. Başka bir tavsiye ver yine aynı domain olsun'' \\
+\hline
+\rowcolor{white}
+Response & The AI identified a structural pattern across all handout examples: each one follows ``describe domain $\rightarrow$ produce concrete output'' (TurtleLang draws, CircuitLang simulates, RecipeLang scales). RuleScript broke this pattern by being too abstract/enterprise-feeling. Three alternatives were proposed: NetSim (network topology simulation), MigrateScript (database migration language, produces SQL), WorkflowScript (typed task/pipeline orchestration, like a Makefile with control flow and a type system). The ``why a new language'' justification for WorkflowScript: ``YAML/Makefile configs are untyped --- errors surface at runtime, not at parse time. WorkflowScript catches them earlier and supports real control flow.'' \\
+\hline
+\rowcolor{altrow}
+Accepted        & WorkflowScript as the domain. The ``describe $\rightarrow$ execute $\rightarrow$ observe output'' pattern matches the handout examples. The justification for a new language is concrete and defensible: type safety at parse time vs.\ silent YAML failures at runtime. \\
+\hline
+\rowcolor{white}
+Rejected / modified & NetSim and MigrateScript were set aside. NetSim felt too close to CircuitLang (already in the handout). MigrateScript is heavily tied to SQL output, which would complicate the interpreter scope for Part~1. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & None. The pattern analysis was sound and the alternatives were genuinely distinct from the handout list. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{Rulescript was very abstract, and the AI explanations didn't satisfy me. I didn't want to proceed further without being sure. That's why I asked for advice again.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 5
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 4 --- Core Language Design Decisions}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 4 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-06 \\
+\hline
+\rowcolor{white}
+Phase           & Design \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Make all 6 core language design decisions for WorkflowScript before writing the EBNF grammar. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``onaylıyorum'' (repeated across 6 decision points). Earlier prompts in the same session: ``Karar 1 A seçeneği olsun diğerlerini göster'', ``B seçeneği ve C yi birleştirsek nasıl olur?'', ``vazgeçtim sadece B olsun'', ``C neden olmamalı sence?'' \\
+\hline
+\rowcolor{white}
+Response & The AI presented options for each decision with exam defense reasoning attached. Key arguments: Name equivalence for task (``Two tasks with identical fields still represent different domain entities --- conflating them would be a semantic error.''), Static scoping (``You can determine which value is bound to a variable by reading the code, without running it.''), int$\rightarrow$float coercion in arithmetic only (``Implicit narrowing causes data loss --- only widening is safe.''), pipeline vs function (``A function computes a value; a pipeline declaratively defines an execution order.''). \\
+\hline
+\rowcolor{altrow}
+Accepted        & All 6 decisions as confirmed: (1) Primitive types: int, float, bool. (2) Structured type: task record (name equivalence). (3) Control structures: if/else, while. (4) Domain-specific: task\{\}, pipeline\{stage\}, run, on\_failure\{\}. (5) Scoping: static (lexical). (6) Expression: standard precedence, left-associative, int$\rightarrow$float widening in arithmetic only. \\
+\hline
+\rowcolor{white}
+Rejected / modified & \texttt{when success/failure} construct was initially accepted then dropped in favor of simpler if/else + while. Reason: --- minimizing parser complexity without weakening the domain-specific justification. \texttt{duration} as a 4th primitive type was proposed but rejected --- adds lexer complexity with marginal benefit for Part~1 scope. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & The AI initially recommended option B over C for the domain-specific construct without a strong reason. When questioned (``C neden olmamalı sence?''), it admitted the only reason was deadline pressure and that C was actually the stronger academic choice. The recommendation changed after pushback. This was a case of the AI being overly conservative rather than wrong on substance. \\
+\hline
+\rowcolor{white}
+Reflection  & \textit{I used AI to analyze the good and bad cases of the 6 decisions required for EBNF grammar design, thus avoiding any assumptions.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 6
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 5 --- EBNF Grammar Evaluation Critique}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 5 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-06 \\
+\hline
+\rowcolor{white}
+Phase           & Design / Grammar \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6 , Gemini \\
+\hline
+\rowcolor{white}
+Goal            & Write the EBNF grammar for WorkflowScript and critically evaluate an AI critique of that grammar. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``Gemini EBNF için aldığımız kararlara şöyle diyor: 1.~Task'ların `Gövdesi' (Body) Yok [...] 2.~Kritik Veri Tipleri Eksik (string ve void) [...] 3.~run İfadesinin Değer Döndürememesi [...] 4.~<field\_expr> Kullanım Alanı Belirsiz [...] 5.~Pipeline Aşama Geçişleri [...]'' \\
+\hline
+\rowcolor{white}
+Response & Claude evaluated each of Gemini's five points and recommended accepting only one: adding \texttt{void} as a return type. The rest were rejected with explicit reasoning. The user's decisions remained unchanged ``WorkflowScript tanımlar, execute etmez --- bu separation of concerns için gerekli.'' and ``Zaten field access var: run build, sonra build.timeout ile state'e erişilir. Expression olması gerekmez.'' \\
+\hline
+\rowcolor{altrow}
+Accepted        & \texttt{void} return type. Functions that perform side effects (like notifying, logging) should not be forced to return a value. This is a small grammar addition with clear semantic value. Added: \texttt{<type> ::= "int" | "float" | "bool" | "task" | "void"} \\
+\hline
+\rowcolor{white}
+Rejected / modified & action field + string type: Would require string literals in the lexer and conflicts with WorkflowScript's design as a simulation/description DSL, not a command executor. run as expression: Unnecessary --- task state is accessible via field access (\texttt{build.timeout}, \texttt{build.retries}) after run. Stage parameters: Adds complexity without adding expressiveness --- pipelines reference tasks, not command strings. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & Gemini assumed WorkflowScript would execute shell commands (hence suggesting \texttt{action: "go build ./..."}). --- tasks describe behavior, not commands. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{Gemini did not ask about the design intent before critiquing. This shows AI feedback can be technically correct but contextually wrong if it doesn't know your design goals.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 7
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 6 --- Lexical Structure: Boolean Literal Classification}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 6 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-07 \\
+\hline
+\rowcolor{white}
+Phase           & Design --- Lexical Structure \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Determine token categories and decide how boolean literals should be classified (keyword vs.\ literal). \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``true ve false AST olarak literal olmalı, fakat Lexerda keyword olarak tanımlanmalı. Bir de sence string eklemeli miyiz dilin konseptini düşünürsek?'' \\
+\hline
+\rowcolor{white}
+Response & The AI confirmed user's point and clarified the two-level distinction: Lexer level: ``true'' is in the keyword list $\rightarrow$ produces BOOL\_LIT token (reserved word). AST level: represented as BoolLiteral(value: true), just like 42 $\rightarrow$ IntLiteral(value: 42). The AI also mapped the token pipeline: ``true'' $\rightarrow$ BOOL\_LIT $\rightarrow$ BoolLiteral(value: true), ``42'' $\rightarrow$ INT\_LIT $\rightarrow$ IntLiteral(value: 42), ``build'' $\rightarrow$ IDENT $\rightarrow$ Identifier(name: ``build''). \\
+\hline
+\rowcolor{altrow}
+Accepted        & The two-level classification of true/false. Treating them as reserved keywords in the lexer prevents their use as variable names, while representing them as literals in the AST gives them the correct semantic meaning. \\
+\hline
+\rowcolor{white}
+Rejected / modified & AI's suggestion to add a string type was rejected.  Adding string literals would complicate the lexer without adding domain value --- the DSL abstracts away command strings by design. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & None. The token pipeline the AI described is consistent with what I independently expected. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{We were able to solve true-false concept by distinguishing between lexer and AST.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 8
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 7 --- Names, Binding, Scope, Lifetime}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 7 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-07 \\
+\hline
+\rowcolor{white}
+Phase           & Design --- Names, Binding, Scope, Lifetime \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Establish scoping rules, shadowing policy, and lifetime categories using Sebesta Ch.~5 terminology. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``Names, Binding, Scope, Lifetime'ı Sebesta terminolojisiyle belirle, ben onaylayacağım veya değiştireceğim.'' \\
+\hline
+\rowcolor{white}
+Response  & The AI produced a lifetime table mapping each language construct to a Sebesta category: task / pipeline declarations $\rightarrow$ Static lifetime, Global var $\rightarrow$ Static lifetime, Function parameters $\rightarrow$ Stack-dynamic lifetime, Local var inside a block $\rightarrow$ Stack-dynamic lifetime. It also asked whether shadowing should be allowed, noting that Go permits it and that it is the natural implementation path when using a linked-list scope chain. \\
+\hline
+\rowcolor{altrow}
+Accepted        & The lifetime table as written. The separation of static lifetime (task, pipeline, global var) from stack-dynamic (locals, parameters) is consistent with the decision that task declarations are top-level only --- a task cannot be declared inside a function precisely because its lifetime must be static. Shadowing allowed (Option~A). Justified because inner scopes creating their own bindings without invalidating outer ones is standard lexical scoping behaviour. Forcing a compile error on shadow would add complexity to the checker with little safety gain for this domain. \\
+\hline
+\rowcolor{white}
+Rejected / modified & Nothing rejected. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & None. The table matched my own reasoning. \\
+\hline
+\rowcolor{white}
+Reflection  & \textit{The decision for task declarations to have a static lifetime was previously made for pipeline references. Therefore, I simply accepted it and continue.} 
+\\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 9
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 8 --- TDD Test Suites}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 8 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-08 \\
+\hline
+\rowcolor{white}
+Phase           & Testing \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Write test suites for the lexer, parser, and type checker following TDD --- failing tests first, then implementation. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``phase-1 den implementasyona başla'' (followed by ``devam et, eğer sorun yoksa'' to advance each phase). Final effective prompt for each phase: ``Önce başarısız olan testleri yaz. Başarısız olduklarını doğrulamak için yeniden çalıştır. Ardından implement et hepsi başarılı olmalı.'' \\
+\hline
+\rowcolor{white}
+Response & The AI generated four test files, each following the same helper-function pattern: Lexer (6 tests: TestLexer\_BasicTokens, TestLexer\_LineNumbers, TestLexer\_IllegalChar), Parser (8 tests including TestParser\_BinaryExpr\_Precedence verifying right subtree is BinaryExpr(*) for \texttt{var x: int = 3 + 4 * 2}), Type checker (8 tests including TestChecker\_IntToFloatCoercion for \texttt{var x: float = 1 + 2.5}), Interpreter (6 tests including TestEval\_StaticScoping verifying y == 10). All 28 tests passed across all 4 packages. \\
+\hline
+\rowcolor{altrow}
+Accepted        & The shared helper pattern (parse / check / run) that wraps the full pipeline in one line --- each test reads as plain English source code rather than token manipulation. The precedence test (3 + 4 * 2 $\rightarrow$ left: 3, right: 4*2) and the static-scoping test were kept exactly: they verify the two most failure-prone invariants in the design. \\
+\hline
+\rowcolor{white}
+Rejected / modified & None of the generated tests were rejected. The plan pre-specified the exact test code, so the AI's role was faithful transcription rather than independent test design. A more honest evaluation would have asked the AI to write tests from the language spec without seeing the implementation --- which would have been a stronger test of AI judgement. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & None caught within the test files themselves. The tests were generated from the plan and matched the implementation spec exactly, so there was no divergence to detect. The real error-catching happened downstream --- in Phase~7 smoke tests (see Entry~9). \\
+\hline
+\rowcolor{white}
+Reflection & \textit{The implementation plan included TDD. Therefore, AI performed the tests without knowing the implementation details. This increased the reliability of the tests.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 10
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 9 --- Example Programs + Smoke Testing}
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 9 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-08 \\
+\hline
+\rowcolor{white}
+Phase           & Writing \\
+\hline
+\rowcolor{altrow}
+AI tool         & Claude Sonnet 4.6  \\
+\hline
+\rowcolor{white}
+Goal            & Write three valid and five invalid WorkflowScript example programs that exercise all language features and produce clear, line-numbered error messages. \\
+\hline
+\rowcolor{altrow}
+Prompt          & ``kodların çalıştığını doğrulamak için example programlar yazmamız gerekiyor. Bazıları valid olsun çalıştığını görelim. Bazıları da invalid olsun. parser hata verip uygun hata mesajları vermesi gerekiyor.'' \\
+\hline
+\rowcolor{white}
+Response & The AI produced all 8 example files and README.md. The most complete valid program (03\_pipeline.ws) included task definitions (build, test, deploy), a pipeline with stages and on\_failure, a function should\_run, and a while loop with if/run. Invalid program errors (all line-numbered, exit code 1): 02\_bad\_field\_order.ws $\rightarrow$ ``line 1: expected KW\_TIMEOUT, got retries'', 03\_empty\_pipeline.ws $\rightarrow$ ``line 1: pipeline must have at least one stage'', 04\_missing\_arrow.ws $\rightarrow$ ``line 1: expected ARROW, got int'', 05\_bad\_parallel.ws $\rightarrow$ ``line 1: expected BOOL\_LIT, got 1''. \\
+\hline
+\rowcolor{altrow}
+Accepted        & All 8 example files were kept. The invalid programs cover exactly one error each and produce the expected message format --- they serve as both human-readable documentation and implicit regression tests. The README was accepted verbatim; it is minimal by design (a DSL tutorial, not a Go package readme). \\
+\hline
+\rowcolor{white}
+Rejected / modified & The parser's field-access rule had to be patched. The plan specified \texttt{p.expect(token.IDENT)} after a dot, but \texttt{timeout}, \texttt{retries}, and \texttt{parallel} lex as keyword tokens (KW\_TIMEOUT etc.), not IDENT. Running \texttt{02\_functions.ws} (which contains \texttt{t.timeout}) exposed the bug. The fix accepted keyword tokens as valid field names after a dot. This change was not in the original plan. \\
+\hline
+\rowcolor{altrow}
+Errors I caught   & The KW\_TIMEOUT field-access bug. Detection method: the smoke test \texttt{./wsc --dump-ast examples/valid/02\_functions.ws} failed with a parse error on \texttt{t.timeout}. Without the example programs as an integration test, the unit tests would have passed and the bug would have remained hidden --- no parser test used dot-access on a keyword-named field. This shows that unit tests alone do not cover integration paths; end-to-end examples caught what 28 unit tests missed. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{These legal and illegal programs have clearly shown us the limits of the language we initially defined.} \\
+\hline
+\end{tabular}
+
+\newpage
+
+
+% ══════════════════════════════════════════════════════════════════════════════
+% ENTRY 1 — Experiment E1 (ZORUNLU)
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Entry 10 --- Experiment E1: EBNF Grammar Generation}
+\label{exp:e1}
+
+\textbf{Experiment E1 task (from §6):} \textit{``Ask the AI to generate an
+EBNF grammar for your language from a one-paragraph description. Compare its
+grammar with yours. What did it get wrong or suboptimal? Does it handle
+operator precedence correctly?''}
+
+\medskip
+
+\begin{tabular}{|
+    >{\bfseries}m{3.5cm}|
+    m{10cm}|
+}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{Field} & \textcolor{white}{\textbf{Content}} \\
+\hline
+\rowcolor{white}
+Entry \#        & 10 of 10 \\
+\hline
+\rowcolor{altrow}
+Date            & 2026-05-08 \\
+\hline
+\rowcolor{white}
+Phase           & Design \\
+\hline
+\rowcolor{altrow}
+AI tool         & \textit Claude Opus 4.6 \\
+\hline
+\rowcolor{white}
+Goal            & Generate an EBNF grammar for WorkflowScript from a
+                  one-paragraph description and compare with my own. \\
+\hline
+\rowcolor{altrow}
+Prompt          & \textit{"Sana bir DSL description vereceğim. Buna göre bana tam bir EBNF grammar oluştur. Başka soru sorma. Bazı spekulasyonlar olacağının farkındayım."} \\
+\hline
+\rowcolor{white}
+Response &
+    A large grammar with generics, \texttt{import}/\texttt{const}/\texttt{type}
+    declarations, arbitrary task fields, \texttt{workflow} (not \texttt{pipeline}),
+    \texttt{triggers}, \texttt{try}/\texttt{catch}, \texttt{let}/\texttt{mut}
+    with optional type annotations, lambda expressions, \texttt{duration}
+    literals, and \texttt{run} taking a shell string literal.
+    Operator precedence: \texttt{||} $\to$ \texttt{\&\&} $\to$
+    equality $\to$ comparison $\to$ additive $\to$ multiplicative $\to$
+    unary, one rule per level. \\
+\hline
+\rowcolor{altrow}
+Accepted        &
+    The precedence hierarchy matches our design exactly, confirming it is
+    standard. The \texttt{on\_failure} block was independently produced,
+    validating that design decision. \\
+\hline
+\rowcolor{white}
+Rejected / modified &
+    Rejected: imports, generics, \texttt{string}/\texttt{duration}/\texttt{null}
+    types, arbitrary task field keys, \texttt{let}/\texttt{mut}, optional
+    type annotations, \texttt{try}/\texttt{catch}, lambdas, ternary,
+    compound assignment, postfix \texttt{!}.
+    None of these are in our design.
+    Renamed \texttt{workflow} back to \texttt{pipeline}. \\
+\hline
+\rowcolor{altrow}
+Errors I caught &
+    \textbf{(1)} \texttt{run} takes a shell string (\texttt{run "go build"})
+    instead of a task identifier (\texttt{run build}).
+    This would destroy the named-task abstraction.
+    \newline
+    \textbf{(2)} Optional type annotation (\texttt{let x = 10}) silently
+    requires type inference our type checker does not implement.
+    \newline
+    \textbf{(3)} Task field catch-all (\texttt{| identifier}) accepts
+    \texttt{task build \{ banana: 42 \}} as valid.
+    \newline
+    All three caught by comparing against our documented design decisions. \\
+\hline
+\rowcolor{white}
+Reflection & \textit{Operator precedence was handled correctly --- the standard one-rule-per-level
+    structure matched ours.
+    However, the AI defaulted to general-purpose language features
+    (TypeScript/Rust style) rather than inferring domain constraints.
+    The \texttt{run} error was the most dangerous: without knowing our
+    design intent, it looks plausible.
+    Lesson: state domain-specific constraints explicitly in the prompt.} \\
+\hline
+\end{tabular}
+
+
+\end{document}

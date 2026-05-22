@@ -1,0 +1,946 @@
+\documentclass[10pt,a4paper]{article}
+
+% --- Paketler ---
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=blue]{hyperref}
+\usepackage{xcolor}
+
+% --- Section numbering: 4.1, 4.2, ... 4.8 ---
+\renewcommand{\thesection}{4.\arabic{section}}
+
+\lstdefinelanguage{WorkflowScript}{
+    keywords={task, pipeline, stage, on_failure, fun, var, run, return,
+              if, else, while, int, float, bool, void, timeout, retries,
+              parallel, true, false},
+    sensitive=true,
+    morecomment=[l]{//},
+}
+
+\lstset{
+    language=WorkflowScript,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray}\itshape,
+    breaklines=true,
+    frame=single,
+    showstringspaces=false,
+    captionpos=b,
+}
+\onehalfspacing
+
+% --- Teorem Ortamları ---
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{definition}{Definition}[section]
+\newtheorem{example}{Example}[section]
+
+% --- Kapak Bilgileri ---
+\title{\textbf{WorkflowScript: D1 -- Design Specification}\\[0.5em]
+       \large CSE341 --- Concepts of Programming Languages\\[0.3em]
+       \normalsize Part 1 \& 2 Submission --- 22 May 2026}
+\author{Ömer Faruk Koç \\ \small 210104004061 \\ \small Gebze Technical University}
+\date{May, 2026}
+
+\begin{document}
+
+\maketitle
+\newpage
+
+\tableofcontents
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Language Overview}
+% -----------------------------------------------------------------------
+
+\subsection{Abstract}
+
+WorkflowScript is a domain-specific language for defining, composing,
+and executing task-based workflow pipelines. Its target users are backend
+developers who need to model CI/CD pipelines, job scheduling, and
+multi-step automation without embedding that logic in a general-purpose
+language.
+The language prioritizes reliability through strong static typing, static scoping, and mandatory task-field declarations, while maintaining writability with concise syntax for common workflow patterns.
+
+YAML-based pipeline definitions (GitHub Actions, GitLab CI) are untyped
+and unstructured: a misspelled field or a wrong value type produces a
+runtime failure, not a definition-time error. General-purpose languages
+add boilerplate and require recompilation for every change.
+WorkflowScript occupies the gap: it has enough of a programming model
+(functions, variables, control flow) to be expressive, while its type
+system and fixed task structure catch errors before any execution begins.
+
+\subsection{Design Priorities}
+
+WorkflowScript prioritizes the following Sebesta criteria:
+
+\begin{itemize}
+    \item \textbf{Reliability} --- strong static typing, static scoping,
+          and mandatory task fields (\texttt{timeout}, \texttt{retries},
+          \texttt{parallel}) prevent undefined behavior at pipeline
+          definition time. A program that passes the parser is guaranteed
+          to have well-formed task declarations; a program that passes the
+          type checker is guaranteed to reference only declared tasks and
+          well-typed variables.
+
+    \item \textbf{Writability} --- concise syntax for the common case:
+          a three-field \texttt{task} declaration, a one-keyword
+          \texttt{stage} reference, and a single \texttt{run} statement
+          to trigger a pipeline or task.
+
+    \item \textbf{Readability} --- structure mirrors the mental model of
+          a workflow: tasks declared first, pipeline composition second,
+          imperative control logic last. The keyword
+          \texttt{on\_failure} reads like plain English.
+\end{itemize}
+
+Knowingly sacrificed: \textbf{cost} (no string type, no arrays, no
+dynamic dispatch, no generics). These features are not needed in the
+pipeline domain and would complicate the type checker and interpreter
+without enabling any new workflow patterns.
+
+\subsection{Sample Program}
+
+\begin{lstlisting}[caption={Sample WorkflowScript program}]
+task build {
+    timeout:  30
+    retries:  0
+    parallel: false
+}
+
+task test {
+    timeout:  60
+    retries:  2
+    parallel: true
+}
+\end{lstlisting}
+
+% -----------------------------------------------------------------------
+\section{Lexical Structure}
+% -----------------------------------------------------------------------
+
+\subsection{Token Categories}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Category} & \textbf{Pattern} & \textbf{Examples} \\
+\midrule
+IDENT      & \texttt{[a-zA-Z\_][a-zA-Z0-9\_]*}     & \texttt{build}, \texttt{my\_task}, \texttt{ci} \\
+INT\_LIT   & \texttt{[0-9]+}                         & \texttt{0}, \texttt{30}, \texttt{120} \\
+FLOAT\_LIT & \texttt{[0-9]+ "." [0-9]+}             & \texttt{0.5}, \texttt{3.14}, \texttt{60.0} \\
+BOOL\_LIT  & \texttt{"true" | "false"}               & \texttt{true}, \texttt{false} \\
+KEYWORD    & Reserved identifiers (see below)        & \texttt{task}, \texttt{if}, \texttt{while} \\
+OPERATOR   & Fixed character sequences               & \texttt{+}, \texttt{==}, \texttt{->} \\
+SEPARATOR  & Fixed single characters                 & \texttt{(}, \texttt{\{}, \texttt{:} \\
+COMMENT    & \texttt{"//" .* "{\textbackslash}n"}    & \texttt{// build the service} \\
+\bottomrule
+\end{tabular}
+\caption{Token categories in WorkflowScript}
+\end{table}
+
+\subsection{Keywords}
+
+The following identifiers are reserved and cannot be used as
+user-defined names:
+
+\begin{lstlisting}[language={}, frame=none, basicstyle=\ttfamily\small]
+task       pipeline   stage      on_failure
+fun        var        run        return
+if         else       while
+int        float      bool       void
+timeout    retries    parallel
+true       false
+\end{lstlisting}
+
+\texttt{true} and \texttt{false} are lexed as BOOL\_LIT tokens rather
+than generic keywords, which simplifies the parser: they can appear
+anywhere a literal is expected without a separate production rule.
+\texttt{task} is reused as both a declaration keyword and a type name in
+function parameter lists. \texttt{timeout}, \texttt{retries}, and
+\texttt{parallel} are reserved so they cannot shadow task field names in
+expressions like \texttt{t.timeout}.
+
+\subsection{Operators}
+
+\begin{lstlisting}[language={}, frame=none, basicstyle=\ttfamily\small]
++    -    *    /
+==   !=   <    <=   >    >=
+&&   ||   !
+=    ->   .
+\end{lstlisting}
+
+\subsection{Separators}
+
+\begin{lstlisting}[language={}, frame=none, basicstyle=\ttfamily\small]
+(    )    {    }    :    ,
+\end{lstlisting}
+
+\subsection{Comments}
+
+Line comments begin with \texttt{//} and extend to the end of the line.
+There are no block comments. The lexer discards comments entirely; they
+produce no tokens. Whitespace (spaces, tabs, carriage returns, newlines)
+is also ignored between tokens.
+
+% -----------------------------------------------------------------------
+\section{Syntax}
+% -----------------------------------------------------------------------
+
+\subsection{Complete Grammar}
+
+The complete grammar in EBNF is given below.
+
+\begin{lstlisting}[language={}, caption={WorkflowScript EBNF grammar}]
+<program>        ::= { <top_decl> }
+
+<top_decl>       ::= <task_decl>
+                   | <pipeline_decl>
+                   | <fun_decl>
+                   | <stmt>
+
+<task_decl>      ::= "task" IDENT "{"
+                         "timeout"  ":" INT_LIT
+                         "retries"  ":" INT_LIT
+                         "parallel" ":" BOOL_LIT
+                     "}"
+
+<pipeline_decl>  ::= "pipeline" IDENT "{" <pipeline_body> "}"
+<pipeline_body>  ::= <stage_stmt> { <stage_stmt> } [ <on_failure> ]
+<stage_stmt>     ::= "stage" IDENT
+<on_failure>     ::= "on_failure" "{" { <stmt> } "}"
+
+<fun_decl>       ::= "fun" IDENT "(" [ <params> ] ")" "->" <type> <block>
+<params>         ::= <param> { "," <param> }
+<param>          ::= IDENT ":" <type>
+
+<type>           ::= "int" | "float" | "bool" | "void" | "task"
+
+<block>          ::= "{" { <stmt> } "}"
+
+<stmt>           ::= <var_decl>
+                   | <assign_stmt>
+                   | <if_stmt>
+                   | <while_stmt>
+                   | <run_stmt>
+                   | <return_stmt>
+                   | <expr_stmt>
+
+<var_decl>       ::= "var" IDENT ":" <type> "=" <expr>
+<assign_stmt>    ::= IDENT "=" <expr>
+<if_stmt>        ::= "if" <expr> <block> [ "else" <block> ]
+<while_stmt>     ::= "while" <expr> <block>
+<run_stmt>       ::= "run" IDENT
+<return_stmt>    ::= "return" <expr>
+<expr_stmt>      ::= <call_expr>
+
+<expr>           ::= <or_expr>
+<or_expr>        ::= <and_expr> { "||" <and_expr> }
+<and_expr>       ::= <eq_expr> { "&&" <eq_expr> }
+<eq_expr>        ::= <cmp_expr> { ( "==" | "!=" ) <cmp_expr> }
+<cmp_expr>       ::= <add_expr> { ( "<" | "<=" | ">" | ">=" ) <add_expr> }
+<add_expr>       ::= <mul_expr> { ( "+" | "-" ) <mul_expr> }
+<mul_expr>       ::= <unary_expr> { ( "*" | "/" ) <unary_expr> }
+<unary_expr>     ::= ( "-" | "!" ) <unary_expr> | <primary>
+<primary>        ::= INT_LIT
+                   | FLOAT_LIT
+                   | BOOL_LIT
+                   | <call_expr>
+                   | <field_expr>
+                   | IDENT
+                   | "(" <expr> ")"
+
+<call_expr>      ::= IDENT "(" [ <args> ] ")"
+<args>           ::= <expr> { "," <expr> }
+<field_expr>     ::= IDENT "." <field_name>
+<field_name>     ::= IDENT | "timeout" | "retries" | "parallel"
+\end{lstlisting}
+
+\subsection{Ambiguity Notes}
+
+\subsubsection{Dangling Else}
+
+The \texttt{<if\_stmt>} rule with an optional \texttt{else} is
+potentially ambiguous when \texttt{if} statements are nested.
+WorkflowScript resolves this with the nearest-\texttt{if} rule: an
+\texttt{else} clause always binds to the innermost unmatched \texttt{if}.
+This is the same convention used by C, Go, and Java. The
+recursive-descent parser implements it naturally: after parsing the
+\texttt{then} block, it looks for \texttt{else} before returning, so the
+\texttt{else} is consumed by the current (innermost) \texttt{if}
+invocation.
+
+\subsubsection{Operator Precedence}
+
+Precedence is encoded directly into the grammar stratification rather
+than via a separate table. From lowest to highest binding strength:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Level} & \textbf{Operators} \\
+\midrule
+Lowest  & \texttt{||} \\
+        & \texttt{\&\&} \\
+        & \texttt{==} \quad \texttt{!=} \\
+        & \texttt{<} \quad \texttt{<=} \quad \texttt{>} \quad \texttt{>=} \\
+        & \texttt{+} \quad \texttt{-} \\
+        & \texttt{*} \quad \texttt{/} \\
+Highest & unary \texttt{-} \quad \texttt{!} \\
+\bottomrule
+\end{tabular}
+\caption{Operator precedence levels (lowest to highest)}
+\end{table}
+
+Because each grammar level calls the level above it, there is no
+ambiguity about how an expression like
+\texttt{a + b * c == d || e} parses --- the structure is determined
+by the grammar alone.
+
+\subsubsection{Field Access on Task-Field Keywords}
+
+The identifiers \texttt{timeout}, \texttt{retries}, and \texttt{parallel}
+are lexed as keyword tokens, not as IDENT. A naive grammar would make
+\texttt{t.timeout} unparseable because \texttt{.} would be followed by
+a keyword rather than an IDENT. The \texttt{<field\_name>} non-terminal
+explicitly allows all three task-field keywords on the right-hand side
+of \texttt{.}, resolving this.
+
+\subsubsection{Expression Statement Restriction}
+
+Only call expressions are permitted as standalone statements
+(\texttt{<expr\_stmt> ::= <call\_expr>}). A bare variable reference
+used as a statement (e.g., writing \texttt{x} on its own line) is
+rejected with a parser error. This eliminates the syntactic ambiguity
+between a no-op expression statement and a misspelled assignment, and
+prevents silent no-op bugs.
+
+\subsubsection{Assignment vs.\ Expression}
+
+Assignment is a statement (\texttt{<assign\_stmt>}), not an expression.
+The parser distinguishes \texttt{IDENT "="} (assignment) from
+\texttt{IDENT "("} (call) by one token of lookahead. This prevents the
+classic \texttt{if x = 5} bug and removes the need for a separate
+assignment-expression production.
+
+% -----------------------------------------------------------------------
+\section{Semantics}
+% -----------------------------------------------------------------------
+
+Operational semantics (Sebesta \S3.5) is used to describe the meaning of WorkflowScript
+constructs. The approach follows the method Sebesta describes: each language construct is
+translated into an equivalent sequence of statements in a simpler \textbf{intermediate
+language} whose meaning is self-evident. The human reader acts as the virtual machine that
+executes these intermediate statements.
+
+\subsection{Intermediate Language}
+
+The intermediate language used below consists of the following statement forms. All statement
+forms are drawn from the vocabulary Sebesta \S3.5.1 introduces:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Intermediate Statement} & \textbf{Meaning} \\
+\midrule
+\texttt{ident = expr}            & Assign the value of \texttt{expr} to variable \texttt{ident} \\
+\texttt{goto label}              & Unconditional jump to \texttt{label} \\
+\texttt{if not(expr) goto label} & Jump to \texttt{label} if \texttt{expr} is false \\
+\texttt{output(str)}             & Print \texttt{str} to standard output (side effect) \\
+\texttt{error(str)}              & Halt with error message \texttt{str} \\
+\bottomrule
+\end{tabular}
+\caption{Intermediate language statement forms}
+\end{table}
+
+Labels are written as \texttt{label:} at the start of a line. \texttt{T} and \texttt{P}
+denote the global, immutable task store and pipeline store respectively, both populated
+before any statement executes.
+
+\subsection{While Statement}
+
+The \texttt{while} statement is the only looping construct in WorkflowScript. Its meaning is
+given by translating it into the intermediate language. The translation has two parts: a
+conditional check at the top and an unconditional back-edge at the bottom, matching the
+pattern Sebesta \S3.5.1 uses for the C \texttt{for} construct.
+
+\begin{lstlisting}[language={}, caption={While statement translation to intermediate language}]
+WorkflowScript                   Intermediate Language
+--------------------------       ----------------------------------------
+while cond {                     loop: if not(cond) goto end
+    s1                                 s1
+    s2                                 s2
+    ...                                ...
+    sn                                 sn
+}                                      goto loop
+                                 end:
+\end{lstlisting}
+
+\textbf{Reading the translation.}
+On each iteration the interpreter evaluates \texttt{cond}. If it is false, control jumps to
+\texttt{end} and the loop is skipped (or exits). If it is true, the body statements
+$s_1 \ldots s_n$ execute in order and control returns to \texttt{loop} for the next test.
+
+\textbf{Non-termination.}
+If \texttt{cond} never becomes false, the \texttt{goto loop} back-edge fires indefinitely
+and the program diverges. WorkflowScript provides no \texttt{break} or \texttt{continue};
+termination is the programmer's responsibility. The type checker guarantees \texttt{cond}
+is of type \texttt{bool} but cannot determine whether the loop terminates.
+
+\textbf{Nested blocks.}
+Each statement $s_i$ in the body may itself be a block; if so, it is expanded recursively
+by the same translation rules. An empty body translates to only the \texttt{goto loop}
+back-edge, producing a spin-loop that depends on a side-effecting condition.
+
+\subsection{Run Statement (Domain-Specific Construct)}
+
+\texttt{run} is WorkflowScript's primary domain-specific statement. It triggers either a
+single named task or an entire named pipeline. There are two cases depending on whether
+\texttt{name} resolves to a task or a pipeline in the global stores.
+
+\textbf{Case 1 --- Running a task}
+(\texttt{name} $\in \mathrm{dom}(\mathtt{T})$):
+
+\begin{lstlisting}[language={}, caption={Run task translation}]
+WorkflowScript                   Intermediate Language
+--------------------------       ----------------------------------------
+run name                         output("[run] name")
+\end{lstlisting}
+
+A single output line is produced. The environment (variable bindings) is not modified;
+\texttt{run} is a pure output action.
+
+\textbf{Case 2 --- Running a pipeline}
+(\texttt{name} $\in \mathrm{dom}(\mathtt{P})$, stages $= [t_1, t_2, \ldots, t_n]$):
+
+\begin{lstlisting}[language={}, caption={Run pipeline translation}]
+WorkflowScript                   Intermediate Language
+--------------------------       ----------------------------------------
+run name                         output("[run] t1")
+                                 output("[run] t2")
+                                 ...
+                                 output("[run] tn")
+\end{lstlisting}
+
+The pipeline's stage list is unrolled into one \texttt{output} call per stage in declaration
+order. There is no conditional branching; every stage always executes.
+
+\textbf{Case 3 --- Undefined name}
+(\texttt{name} $\notin \mathrm{dom}(\mathtt{T})$ and \texttt{name} $\notin \mathrm{dom}(\mathtt{P})$):
+
+\begin{lstlisting}[language={}, caption={Run undefined name translation}]
+WorkflowScript                   Intermediate Language
+--------------------------       ----------------------------------------
+run name                         error("undefined task or pipeline 'name'")
+\end{lstlisting}
+
+This case is unreachable in well-typed programs: the static type checker verifies that every
+\texttt{run} target is declared before execution begins, so \texttt{error(...)} is included
+here only for completeness.
+
+\textbf{Key observations.}
+\begin{enumerate}
+    \item \texttt{run} does \textbf{not} modify variable bindings. Task parameters
+          (\texttt{timeout}, \texttt{retries}, \texttt{parallel}) are fixed at declaration
+          time; the intermediate translation contains no assignment to any program variable.
+    \item Case~1 vs.\ Case~2 is resolved by checking $\mathrm{dom}(\mathtt{T})$ first.
+          A name cannot simultaneously be a task and a pipeline because both share the same
+          global namespace and the parser rejects duplicate declarations.
+    \item The \texttt{on\_failure} block of a \texttt{pipeline} declaration is statically
+          type-checked but is never entered during normal execution: since \texttt{run} is
+          simulated (output only), no failure signal is ever raised. It would be triggered
+          by an extension that models real process failure.
+\end{enumerate}
+
+% -----------------------------------------------------------------------
+\section{Type System}
+% -----------------------------------------------------------------------
+
+\subsection{Primitive Types and Value Sets}
+
+WorkflowScript has three primitive types:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Type} & \textbf{Go Runtime Representation} & \textbf{Value Set} \\
+\midrule
+\texttt{int}   & \texttt{int64}   & 64-bit signed integers stored in two's-complement; range $-2^{63}$ to $2^{63}-1$ \\
+\texttt{float} & \texttt{float64} & IEEE~754 double precision; $\approx \pm 1.8 \times 10^{308}$, 15--17 sig.\ digits \\
+\texttt{bool}  & \texttt{bool}    & \{\texttt{true}, \texttt{false}\} \\
+\bottomrule
+\end{tabular}
+\caption{Primitive types in WorkflowScript}
+\end{table}
+
+\texttt{int} covers all realistic timeout values (seconds) and retry counts. \texttt{float}
+is available for computations that mix integer task parameters into fractional results.
+\texttt{bool} corresponds to the \texttt{parallel} task field and to all comparison results.
+
+There is no \texttt{string} type. Pipeline stage names are identifiers in the source text, not
+runtime data; no string manipulation is needed in the workflow domain.
+
+\subsection{Strong or Weak Typing?}
+
+WorkflowScript is \textbf{strongly typed} (Sebesta \S6.12 definition: a language is strongly
+typed if type errors are always detected). Every variable carries a declared type annotation
+that does not change across assignments. The type checker enforces the following rules before
+any execution begins:
+
+\begin{itemize}
+    \item A variable declared as \texttt{int} cannot be assigned a \texttt{bool} value.
+    \item Arithmetic operators (\texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}) require both
+          operands to be numeric (\texttt{int} or \texttt{float}); applying them to
+          \texttt{bool} is a compile-time error.
+    \item Boolean operators (\texttt{\&\&}, \texttt{||}, \texttt{!}) require \texttt{bool}
+          operands.
+    \item A function declared \texttt{-> int} must return an expression of type \texttt{int}
+          (or \texttt{float} --- see \S\ref{subsec:coercion}); returning \texttt{bool} is a
+          compile-time error.
+    \item \texttt{void} cannot be used as a value: \texttt{var x: void} is rejected, and the
+          result of a \texttt{void} function cannot appear in an expression.
+\end{itemize}
+
+No type information is deferred to runtime: every name's type is known statically, and every
+expression's type is determined from its sub-expressions without executing the program.
+
+\textbf{Caveat --- coercion and strong typing.}
+Sebesta \S6.14 notes that implicit coercion is the primary way languages weaken the
+strong-typing guarantee: if an \texttt{int} is silently accepted where a \texttt{float} is
+expected, a programmer who writes the wrong variable by mistake will not receive a type error.
+WorkflowScript's single coercion rule (int$\to$float widening, \S\ref{subsec:coercion})
+introduces this theoretical weakening. In practice the risk is minimal: widening only applies
+in one direction and only between numeric types, and the domain is narrow enough that
+accidentally passing an integer where a float is expected is unlikely to cause a semantic
+error. Nevertheless, the language is best described as \textit{effectively strongly typed}
+rather than \textit{absolutely strongly typed} in Sebesta's strictest sense.
+
+\subsection{Implicit Type Coercion}
+\label{subsec:coercion}
+
+There is exactly one coercion rule:
+
+\begin{quote}
+\textbf{int-to-float widening:} an expression of type \texttt{int} is implicitly accepted
+wherever a \texttt{float} is expected, in both variable declarations and function arguments.
+\end{quote}
+
+\begin{lstlisting}[language={}, caption={Type compatibility function}]
+typesCompatible(int, float) = true
+typesCompatible(float, int) = false   -- narrowing is forbidden
+typesCompatible(T, T)       = true    -- reflexive for all other types
+typesCompatible(T, U)       = false   -- otherwise
+\end{lstlisting}
+
+This coercion is applied in:
+
+\begin{itemize}
+    \item \textbf{Variable declarations:} \texttt{var x: float = 1 + 2} is valid; the integer
+          result \texttt{3} widens to \texttt{3.0}.
+    \item \textbf{Function arguments:} a parameter of type \texttt{float} may receive an
+          \texttt{int} argument.
+    \item \textbf{Binary arithmetic:} if one operand is \texttt{float} and the other is
+          \texttt{int}, the \texttt{int} is promoted to \texttt{float} and the result is
+          \texttt{float}.
+\end{itemize}
+
+Narrowing (\texttt{float}$\to$\texttt{int}) is deliberately absent. Truncation loses
+information silently and conflicts with WorkflowScript's reliability goal. Any narrowing
+conversion must be written explicitly by the programmer (not supported in the current version,
+consistent with the language's minimal scope).
+
+\subsection{Type Equivalence}
+
+WorkflowScript uses \textbf{name equivalence} for the \texttt{task} structured type
+(Sebesta \S6.14).
+
+There is exactly one type named \texttt{task}. Every task declaration --- regardless of the
+values assigned to \texttt{timeout}, \texttt{retries}, and \texttt{parallel} --- belongs to
+this single type. Two tasks with identical field values are therefore type-compatible; a
+function accepting \texttt{task} may receive any declared task as an argument.
+
+Name equivalence is the right choice for two reasons.
+
+\textbf{Primary reason --- forward extensibility and semantic safety.}
+Sebesta \S6.14 illustrates the hazard of structural equivalence with the classic
+Celsius/Fahrenheit example: two record types with an identical single \texttt{float} field
+are structurally equivalent, yet treating a Celsius value as Fahrenheit is a semantic error
+that structural equivalence silently permits. The same hazard applies here. If a second
+structured type --- say, \texttt{pipeline} --- were later added to WorkflowScript, it would
+likely carry the same fields (\texttt{timeout: int}, \texttt{retries: int},
+\texttt{parallel: bool}). Under structural equivalence a function that expected a
+\texttt{task} would silently accept a \texttt{pipeline}, conflating two fundamentally
+different domain concepts. Name equivalence prevents this: the type checker would reject the
+mismatch regardless of field layout. The principle is that structurally similar types can be
+semantically incompatible, and name equivalence is the mechanism that enforces this separation.
+
+\textbf{Secondary reason --- conceptual fit.}
+Tasks are domain roles identified by name (\texttt{build}, \texttt{deploy}, \texttt{test}),
+not by their parameter values. Two tasks with identical timeouts and retry counts are still
+different units of work. Name equivalence reflects this: the type system recognises only the
+declared type name \texttt{task}, not the field values, consistent with the domain model.
+
+\subsection{Structured Type Design Decisions (Sebesta \S6.5--\S6.7)}
+
+The \texttt{task} type is WorkflowScript's single structured type. It is a \textbf{record}
+(Sebesta \S6.7) with three fixed fields:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Field} & \textbf{Type} & \textbf{Meaning} \\
+\midrule
+\texttt{timeout}  & \texttt{int}  & Maximum seconds the task may run \\
+\texttt{retries}  & \texttt{int}  & Number of retry attempts on failure \\
+\texttt{parallel} & \texttt{bool} & Whether the task may run concurrently \\
+\bottomrule
+\end{tabular}
+\caption{Fields of the \texttt{task} structured type}
+\end{table}
+
+Sebesta \S6.7 identifies two primary design issues for record types; a third concern
+(implementation) is addressed in the same section. Each is resolved below for \texttt{task}.
+
+\textbf{Design issue 1 --- Field reference syntax.}
+Sebesta \S6.7 contrasts the dot notation used in most languages (\texttt{record.field}) with
+COBOL's reversed \texttt{OF} syntax (\texttt{field OF record}). WorkflowScript uses dot
+notation exclusively: \texttt{t.timeout}, \texttt{t.retries}, \texttt{t.parallel}. Dot
+notation was chosen because it is the near-universal convention in languages that
+WorkflowScript programmers are likely to know (Go, Python, Java, JavaScript). The three field
+names (\texttt{timeout}, \texttt{retries}, \texttt{parallel}) are reserved keywords so that
+the lexer can tokenise \texttt{t.timeout} unambiguously.
+
+\textbf{Design issue 2 --- Elliptical references.}
+In languages with nested records, Sebesta \S6.7 notes that some designs allow the programmer
+to omit intermediate record names when the field name is unambiguous in scope (an
+\textit{elliptical reference}). WorkflowScript deliberately \textbf{disallows} elliptical
+references. Every field access must be written as \texttt{variable.field}
+(e.g., \texttt{t.timeout}), never as a bare \texttt{timeout}. This decision keeps name
+resolution simple: the parser never needs to search the environment for a record that owns a
+given field name. It also prevents shadowing bugs where a local variable named \texttt{timeout}
+might be confused with a task field of the same name.
+
+\textbf{Implementation --- compile-time descriptor, no run-time descriptor.}
+Sebesta \S6.7 explains that record field offsets are fixed at compile time and can be stored
+in a \textit{type descriptor}. No descriptor is needed at run time because field names are
+never looked up dynamically. WorkflowScript follows this model exactly: the type checker
+resolves \texttt{t.timeout} to the \texttt{timeout} field of the \texttt{task} type at
+compile time and rejects any unknown field name (e.g., \texttt{t.cost}) as a type error. The
+interpreter then accesses \texttt{TaskValue} fields directly by name in Go struct literals ---
+there is no hash-map lookup or dynamic dispatch at run time. Field access is O(1) and cannot
+fail after the type-checking pass.
+
+% -----------------------------------------------------------------------
+\section{Names, Binding, Scope, and Lifetime}
+% -----------------------------------------------------------------------
+
+\subsection{Legal Identifiers}
+
+A name must match the regular expression
+\texttt{[a-zA-Z\_][a-zA-Z0-9\_]*}: it begins with a letter or
+underscore and continues with any mix of letters, digits, and
+underscores. There is no length limit. Names are case-sensitive:
+\texttt{Build} and \texttt{build} are distinct identifiers. Any name
+that matches a keyword listed in Section~4.2 is reserved and cannot be
+used as a user-defined identifier.
+
+\subsection{Bindings: Compile Time vs.\ Run Time}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}p{7.5cm}p{6.5cm}@{}}
+\toprule
+\textbf{Binding} & \textbf{Time} \\
+\midrule
+Variable type (declared in \texttt{var})
+    & Compile time --- explicit type annotation \\
+Function parameter types and return type
+    & Compile time --- explicit annotations \\
+Task field types (\texttt{timeout}: int, \texttt{retries}: int, \texttt{parallel}: bool)
+    & Compile time --- fixed by language definition \\
+Stage-to-task resolution in pipelines
+    & Compile time --- stage IDENT must name a declared task \\
+Variable value
+    & Run time \\
+Function body execution
+    & Run time \\
+Pipeline execution (on \texttt{run})
+    & Run time \\
+\bottomrule
+\end{tabular}
+\caption{Binding times in WorkflowScript}
+\end{table}
+
+The early binding of types and stage references is the primary mechanism
+by which WorkflowScript achieves reliability. A program that passes the
+type checker is guaranteed to have no unresolved task references at
+runtime, and no type mismatches in arithmetic or comparisons.
+
+\subsection{Scoping}
+
+WorkflowScript uses \textbf{static (lexical) scoping}. The scope of a
+name is determined by its textual position in the source. A name is
+visible from its declaration point to the end of the enclosing block.
+Inner blocks may shadow outer names.
+
+There are three kinds of scope:
+
+\begin{enumerate}
+    \item \textbf{Program scope} --- the outermost scope. Task
+          declarations, pipeline declarations, top-level \texttt{var}
+          declarations, and top-level statements all live here. Every
+          name declared at program scope is visible throughout the entire
+          program after its declaration point.
+
+    \item \textbf{Function scope} --- each \texttt{fun} body opens a new
+          scope. Parameters are bound at the function entry point and are
+          visible throughout the function body. \texttt{var} declarations
+          inside the body extend their scope to the closing \texttt{\}}
+          of the function.
+
+    \item \textbf{Block scope} --- \texttt{if} bodies, \texttt{while}
+          bodies, and \texttt{on\_failure} bodies each open a nested
+          scope. A \texttt{var} declared inside one of these blocks is
+          not visible outside it.
+\end{enumerate}
+
+\subsubsection{Why Static Scoping?}
+
+A developer can determine which variable a name refers to by reading the
+source alone, without executing the program. Dynamic scoping would make
+name resolution call-order--dependent. In a pipeline context this is
+especially dangerous: a function called from two different
+\texttt{on\_failure} handlers could see different variable bindings
+depending on which handler invoked it. This makes the same source code
+mean different things in different call contexts --- precisely the kind
+of unreliability WorkflowScript is designed to prevent.
+
+\subsubsection{What Would Break Under Dynamic Scoping?}
+
+Consider a function \texttt{fun check(t: task) -> bool} that reads a
+top-level variable \texttt{var threshold: int}. With static scoping,
+\texttt{threshold} always resolves to the top-level declaration,
+regardless of where \texttt{check} is called. With dynamic scoping, if
+a caller had a local variable named \texttt{threshold}, the function
+would silently read the caller's value instead. Pipeline authors would
+have to track all active variable names at every call site --- an
+unreasonable cognitive burden.
+
+\subsection{Lifetime}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}p{4cm}p{4.5cm}p{5.5cm}@{}}
+\toprule
+\textbf{Entity} & \textbf{Lifetime} & \textbf{Rationale} \\
+\midrule
+\texttt{task} declarations
+    & Static --- entire program execution
+    & Stage references must remain valid whenever a pipeline runs \\
+\texttt{pipeline} declarations
+    & Static --- entire program execution
+    & Pipelines may be invoked anywhere in the program \\
+Top-level \texttt{var} declarations
+    & Static --- entire program execution
+    & Top-level variables function as global pipeline configuration \\
+Function parameters
+    & Stack-dynamic --- created on call, destroyed on return
+    & Standard; no reason to outlive the invocation \\
+Local \texttt{var} inside a block
+    & Stack-dynamic --- created on block entry, destroyed on exit
+    & Standard block-scoped allocation \\
+\bottomrule
+\end{tabular}
+\caption{Lifetime of entities in WorkflowScript}
+\end{table}
+
+\subsubsection{Why Static Lifetime for Tasks?}
+
+A pipeline's \texttt{stage} declarations are resolved at compile time,
+but the pipeline may be executed (via \texttt{run}) at any point during
+program execution. If tasks were stack-dynamic, a task declared inside a
+function could be destroyed before a pipeline referencing it runs. Making
+task lifetime static ensures that any \texttt{stage} reference that
+passes the type checker is also safe at runtime --- the referenced task
+will always exist.
+
+\subsubsection{Why Stack-Dynamic for Local Variables?}
+
+Local variables need to hold different values across different function
+calls and loop iterations. Stack-dynamic allocation achieves this
+naturally: each call to a function creates a fresh binding for each
+parameter and local variable. Explicit-heap-dynamic allocation would add
+unnecessary complexity (requiring manual deallocation or a garbage
+collector) for values that are structurally bounded by the block they
+live in.
+
+% -----------------------------------------------------------------------
+\section{Expressions \& Assignment}
+% -----------------------------------------------------------------------
+
+\subsection{Operator Precedence and Associativity}
+
+The table below lists all binary operators from lowest to highest binding strength. All
+binary operators are left-associative. Precedence is encoded directly into the
+recursive-descent grammar (Section~4.3) --- each level calls the level above it --- so the
+table is a reading aid, not a separate mechanism.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Precedence} & \textbf{Operators} & \textbf{Associativity} \\
+\midrule
+1 (lowest) & \texttt{||} & left \\
+2          & \texttt{\&\&} & left \\
+3          & \texttt{==} \quad \texttt{!=} & left \\
+4          & \texttt{<} \quad \texttt{<=} \quad \texttt{>} \quad \texttt{>=} & left \\
+5          & \texttt{+} \quad \texttt{-} & left \\
+6          & \texttt{*} \quad \texttt{/} & left \\
+7 (highest) & unary \texttt{-} \quad \texttt{!} & right (prefix) \\
+\bottomrule
+\end{tabular}
+\caption{Operator precedence and associativity (lowest to highest)}
+\end{table}
+
+The unary operators bind more tightly than any binary operator. \texttt{!a \&\& b} parses
+as \texttt{(!a) \&\& b}, and \texttt{-a * b} parses as \texttt{(-a) * b}.
+
+\subsection{Short-Circuit Evaluation of Boolean Operators}
+
+WorkflowScript uses \textbf{short-circuit (lazy) evaluation} for \texttt{\&\&} and
+\texttt{||} (Sebesta \S7.6):
+
+\begin{itemize}
+    \item \texttt{e$_1$ \&\& e$_2$}: if \texttt{e$_1$} evaluates to \texttt{false},
+          \texttt{e$_2$} is not evaluated and the result is \texttt{false}.
+    \item \texttt{e$_1$ || e$_2$}: if \texttt{e$_1$} evaluates to \texttt{true},
+          \texttt{e$_2$} is not evaluated and the result is \texttt{true}.
+\end{itemize}
+
+Sebesta \S7.6 motivates this choice with the canonical array-bounds guard example: without
+short-circuit evaluation, the second operand of \texttt{\&\&} would be evaluated even when
+the first is false, causing a potential runtime error. WorkflowScript adopts short-circuit
+semantics to support the same guard pattern in \texttt{while} conditions.
+
+Sebesta \S7.6 also warns that short-circuit evaluation interacts with side effects: if the
+unevaluated operand contains a side-effecting expression, the side effect is silently skipped.
+WorkflowScript mitigates this by restricting side effects: the only side-effecting statement
+is \texttt{run}, which cannot appear inside an expression. Function calls in expressions
+return values but do not modify global state, so the skip-on-short-circuit hazard does not
+apply.
+
+The type checker evaluates both operands unconditionally for type correctness. This is sound
+because type checking is a static pass that does not execute expressions.
+
+\subsection{Order of Operand Evaluation}
+
+Sebesta \S7.2.2 identifies operand evaluation order as a design issue whenever operands can
+have side effects: if a function call in an expression modifies a variable that also appears
+as another operand, the result depends on which operand is evaluated first. Two solutions
+exist: disallow functional side effects, or define a specific evaluation order
+(Sebesta \S7.2.2.1).
+
+WorkflowScript chooses the second option. Operand evaluation order is \textbf{defined as
+left-to-right}: for a binary expression \texttt{e$_1$ op e$_2$}, \texttt{e$_1$} is always
+evaluated before \texttt{e$_2$}. This matches the approach Java takes (Sebesta \S7.2.2.1:
+``The Java language definition guarantees that operands appear to be evaluated in
+left-to-right order'') and is consistent with short-circuit semantics, which requires the
+left operand to be known before deciding whether to evaluate the right.
+
+\subsection{Assignment: Statement or Expression?}
+
+Assignment (\texttt{x = expr}) is a \textbf{statement}, not an expression
+(Sebesta \S7.7.1, \S7.7.5). It cannot appear inside a larger expression; it must stand
+alone on its own line. The parser enforces this by distinguishing \texttt{IDENT "="} (assignment
+statement) from \texttt{IDENT "("} (call expression) using one token of lookahead.
+
+Sebesta \S7.7.5 discusses the C design where assignment is an expression, and identifies its
+primary hazard: \texttt{if (x = y)} is silently accepted when the programmer intended
+\texttt{if (x == y)}. WorkflowScript structurally prevents this class of bug --- \texttt{=}
+is never valid in an expression context, so the mistake is a parse error. Chained assignment
+(\texttt{a = b = 5}) is not supported, consistent with Fortran and Ada's approach
+(Sebesta \S7.7.1).
+
+% -----------------------------------------------------------------------
+\section{Design Rationale}
+% -----------------------------------------------------------------------
+
+For each of the five numbered design decisions from sections 4.5--4.7 above, the following
+paragraphs justify the choice and name at least one trade-off accepted.
+
+\subsection{Decision 1 --- Strong Static Typing}
+
+WorkflowScript is strongly typed because reliability is its primary language criterion. A
+pipeline configuration that silently accepts the wrong type of value can fail at execution
+time, potentially after a long-running job has already started. By detecting all type errors
+before execution begins, WorkflowScript guarantees that a program which passes the type checker
+will not crash due to a type mismatch. The trade-off accepted is reduced flexibility: users
+cannot, for instance, write a function that accepts ``any numeric type'' without specifying
+\texttt{int} or \texttt{float}. This is acceptable because the domain is narrow --- task
+parameters are always concrete integers or booleans --- and generics would significantly
+complicate the type checker without enabling any new workflow patterns.
+
+\subsection{Decision 2 --- int-to-float Widening Only}
+
+Allowing \texttt{int} to widen to \texttt{float} eliminates friction when computing derived
+metrics (e.g., \texttt{t.timeout * 1.5} for a soft deadline). Disallowing
+\texttt{float}-to-\texttt{int} narrowing prevents silent truncation: \texttt{retries: 2.7}
+is meaningless and should be a compile-time error. The trade-off is that converting a float
+result back to an integer must be done explicitly, which is not currently supported in the
+language. This is intentional: if a programmer needs \texttt{int(x / 3.0)}, they should be
+forced to think about what truncation means for their pipeline logic. Keeping coercion
+one-directional keeps the \texttt{typesCompatible} function simple and its behavior obvious.
+
+\subsection{Decision 3 --- Name Equivalence for \texttt{task}}
+
+Name equivalence was chosen because \texttt{task} is a domain role, not a data structure.
+A \texttt{build} task and a \texttt{test} task carry the same three fields, but they represent
+fundamentally different units of work. If structural equivalence were used, any ad-hoc record
+with \texttt{timeout: int}, \texttt{retries: int}, \texttt{parallel: bool} fields would be
+interchangeable with a declared task --- which would allow a programmer to accidentally pass
+the wrong task to a pipeline stage. With name equivalence and a single \texttt{task} type,
+all tasks are interchangeable at the type level (they all have type \texttt{task}), but their
+identities are preserved at the value level (the runtime stores each task under its declared
+name). The trade-off is that the language cannot distinguish \texttt{task build} from
+\texttt{task deploy} in a function signature; both accept any \texttt{task}. A richer type
+system with per-task singleton types would fix this but is beyond the scope of the project.
+
+\subsection{Decision 4 --- Short-Circuit Boolean Evaluation}
+
+Short-circuit evaluation is the natural choice for a language where the right-hand side of
+\texttt{\&\&} or \texttt{||} may be an expression with a side effect or a potential runtime
+error (e.g., division by zero in a guard condition). It matches the expectations of
+programmers coming from Go, Python, C, and most mainstream languages. The implementation is
+clean: \texttt{evalLogical} is a separate method from \texttt{evalBinary}, called specifically
+when the operator is \texttt{\&\&} or \texttt{||}. The trade-off is a small asymmetry: the
+type checker always evaluates both operands for type correctness, while the interpreter may
+not evaluate the right operand. This means a type error in the right operand of
+\texttt{false \&\& <bad\_expr>} is caught at compile time even though the expression would
+never be evaluated at runtime. This is the correct behavior --- type checking and execution
+are separate passes.
+
+\subsection{Decision 5 --- Assignment as Statement, Not Expression}
+
+Treating assignment as a statement eliminates an entire class of bugs. The most common is
+\texttt{if x = 5} where the programmer intended \texttt{if x == 5}: in languages where
+assignment is an expression, the if-condition is silently the assigned value (\texttt{5},
+which is truthy), not the comparison result. WorkflowScript's parser rejects this pattern
+structurally: \texttt{=} is never parsed inside an expression context. The trade-off is that
+chained assignment (\texttt{a = b = 5}) is unsupported, but chaining is rarely needed in
+workflow configuration scripts and its absence does not reduce expressiveness in the domain.
+
+\end{document}
