@@ -1,6 +1,9 @@
 # compiled binaries
 /wsc
 
+# Claude Code
+.claude/
+
 # Go test and build artifacts
 *.test
 *.out
